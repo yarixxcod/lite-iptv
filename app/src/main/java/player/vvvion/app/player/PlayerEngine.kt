@@ -78,6 +78,7 @@ class PlayerEngine(
     private var networkHooked = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var texture: TextureView? = null
+    private var boundTexture: TextureView? = null
     private val bandwidthMeter by lazy {
         DefaultBandwidthMeter.Builder(appContext)
             .setInitialBitrateEstimate(350_000L)
@@ -89,7 +90,10 @@ class PlayerEngine(
     fun attachTexture(view: TextureView) {
         try {
             texture = view
-            player?.setVideoTextureView(view)
+            val exo = player ?: return
+            if (boundTexture === view) return
+            exo.setVideoTextureView(view)
+            boundTexture = view
         } catch (t: Throwable) {
             reportPlayback(t)
         }
@@ -100,6 +104,7 @@ class PlayerEngine(
             if (texture === view) {
                 player?.clearVideoTextureView(view)
                 texture = null
+                if (boundTexture === view) boundTexture = null
             }
         } catch (t: Throwable) {
             reportPlayback(t)
@@ -217,6 +222,7 @@ class PlayerEngine(
         networkHooked = false
         player?.release()
         player = null
+        boundTexture = null
         profile = null
         userAgent = null
         }
@@ -234,14 +240,10 @@ class PlayerEngine(
     private fun ensurePlayer(profile: BufferProfile, userAgent: String) {
         if (player != null && this.profile == profile && this.userAgent == userAgent) return
         player?.release()
+        boundTexture = null
         this.profile = profile
         this.userAgent = userAgent
         val dataSource = OkHttpDataSource.Factory(http.player).setUserAgent(userAgent)
-        val targetBytes = when (profile) {
-            BufferProfile.LOW_LATENCY -> 16 * 1024 * 1024
-            BufferProfile.MAX_STABILITY -> 32 * 1024 * 1024
-            else -> 24 * 1024 * 1024
-        }
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 profile.minBufferMs,
@@ -249,14 +251,12 @@ class PlayerEngine(
                 profile.bufferForPlaybackMs,
                 profile.bufferForRebufferMs,
             )
-            .setTargetBufferBytes(targetBytes)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(12_000, true)
+            .setTargetBufferBytes(DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .setBackBuffer(15_000, true)
             .build()
-        val metrics = appContext.resources.displayMetrics
         val selector = DefaultTrackSelector(appContext).apply {
             parameters = buildUponParameters()
-                .setViewportSize(metrics.widthPixels, metrics.heightPixels, true)
                 .setAllowVideoNonSeamlessAdaptiveness(true)
                 .build()
         }
@@ -276,6 +276,7 @@ class PlayerEngine(
                 texture?.let { view ->
                     try {
                         exo.setVideoTextureView(view)
+                        boundTexture = view
                     } catch (t: Throwable) {
                         reportPlayback(t)
                     }

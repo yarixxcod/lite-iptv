@@ -94,3 +94,9 @@
 -keep class androidx.media3.datasource.okhttp.OkHttpDataSource$Factory { *; }
 
 
+
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep class androidx.media3.exoplayer.source.** { *; }
+-keep class androidx.media3.extractor.** { *; }
+-keep class androidx.media3.exoplayer.hls.** { *; }

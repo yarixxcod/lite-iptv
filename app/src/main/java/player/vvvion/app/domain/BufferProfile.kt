@@ -6,9 +6,9 @@ enum class BufferProfile(
     val bufferForPlaybackMs: Int,
     val bufferForRebufferMs: Int,
 ) {
-    AUTO(15_000, 55_000, 2_500, 5_000),
+    AUTO(15_000, 50_000, 2_500, 5_000),
     LOW_LATENCY(2_000, 15_000, 500, 1_000),
-    STABLE(15_000, 60_000, 2_500, 5_000),
+    STABLE(15_000, 50_000, 2_500, 5_000),
     MAX_STABILITY(30_000, 120_000, 5_000, 10_000),
     ;
 
