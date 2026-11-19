@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -57,6 +58,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import player.vvvion.app.R
 import player.vvvion.app.domain.AspectMode
+import player.vvvion.app.player.SignalQuality
 import player.vvvion.app.player.TrackChoice
 import kotlinx.coroutines.delay
 
@@ -199,16 +201,10 @@ fun PlayerPane(
                 Text(stringResource(R.string.buffering), color = Color.White)
             }
         }
-        if (state.weak) {
-            Text(
-                stringResource(R.string.weak_connection),
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Accent.copy(alpha = 0.18f))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                color = Accent,
-            )
-        }
+        SignalBadge(
+            quality = state.signal,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
+        )
         if (typed.isNotEmpty()) {
             Text(typed, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.TopStart).padding(24.dp))
         }
@@ -319,6 +315,52 @@ fun PlayerPane(
                 Text(now?.title ?: stringResource(R.string.no_program), color = Muted, maxLines = 1)
                 LinearProgressIndicator(progress = { programProgress(now) }, modifier = Modifier.fillMaxWidth(0.55f).padding(top = 6.dp))
             }
+        }
+    }
+}
+
+
+@Composable
+private fun SignalBadge(quality: SignalQuality, modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(quality) {
+        if (quality == SignalQuality.HIDDEN) {
+            visible = false
+            return@LaunchedEffect
+        }
+        visible = true
+        if (quality != SignalQuality.STALLED) {
+            delay(5_000)
+            visible = false
+        }
+    }
+    if (!visible && quality != SignalQuality.STALLED) return
+    val color = when (quality) {
+        SignalQuality.STALLED, SignalQuality.POOR -> Color(0xFFEF9A9A)
+        SignalQuality.FAIR -> Color(0xFFFFD54F)
+        else -> Color(0xFF81C784)
+    }
+    val filled = when (quality) {
+        SignalQuality.STALLED, SignalQuality.POOR -> 1
+        SignalQuality.FAIR -> 2
+        else -> 4
+    }
+    Row(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        for (index in 1..4) {
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .height((6 + index * 3).dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(if (index <= filled) color else Color.White.copy(alpha = 0.22f)),
+            )
         }
     }
 }

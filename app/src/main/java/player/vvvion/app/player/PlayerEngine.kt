@@ -35,6 +35,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.min
 import kotlin.random.Random
 
+enum class SignalQuality { HIDDEN, GOOD, FAIR, POOR, STALLED }
+
 data class TrackChoice(val label: String, val groupIndex: Int, val trackIndex: Int, val selected: Boolean)
 
 data class EngineState(
@@ -42,6 +44,7 @@ data class EngineState(
     val rebuffering: Boolean = false,
     val error: String? = null,
     val weak: Boolean = false,
+    val signal: SignalQuality = SignalQuality.HIDDEN,
     val aspect: AspectMode = AspectMode.FIT,
     val audio: List<TrackChoice> = emptyList(),
     val subtitles: List<TrackChoice> = emptyList(),
@@ -230,6 +233,11 @@ class PlayerEngine(
         this.profile = profile
         this.userAgent = userAgent
         val dataSource = OkHttpDataSource.Factory(http.player).setUserAgent(userAgent)
+        val targetBytes = when (profile) {
+            BufferProfile.LOW_LATENCY -> 16 * 1024 * 1024
+            BufferProfile.MAX_STABILITY -> 32 * 1024 * 1024
+            else -> 24 * 1024 * 1024
+        }
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 profile.minBufferMs,
@@ -237,9 +245,17 @@ class PlayerEngine(
                 profile.bufferForPlaybackMs,
                 profile.bufferForRebufferMs,
             )
-            .setBackBuffer(15_000, true)
+            .setTargetBufferBytes(targetBytes)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .setBackBuffer(12_000, true)
             .build()
-        val selector = DefaultTrackSelector(appContext)
+        val metrics = appContext.resources.displayMetrics
+        val selector = DefaultTrackSelector(appContext).apply {
+            parameters = buildUponParameters()
+                .setViewportSize(metrics.widthPixels, metrics.heightPixels, true)
+                .setAllowVideoNonSeamlessAdaptiveness(true)
+                .build()
+        }
         val factory = DefaultMediaSourceFactory(dataSource).setLoadErrorHandlingPolicy(RetryPolicy())
         player = ExoPlayer.Builder(appContext)
             .setRenderersFactory(
@@ -357,25 +373,35 @@ class PlayerEngine(
 
     private fun publishWeak() {
         val estimate = bandwidthMeter.bitrateEstimate
-        val weak = _state.value.rebuffering || (estimate in 1 until 700_000)
-        if (weak != _state.value.weak) _state.value = _state.value.copy(weak = weak)
+        val rebuffering = _state.value.rebuffering && !_state.value.playing
+        val signal = when {
+            rebuffering -> SignalQuality.STALLED
+            estimate <= 0L -> if (_state.value.playing) SignalQuality.GOOD else SignalQuality.HIDDEN
+            estimate < 400_000L -> SignalQuality.POOR
+            estimate < 1_200_000L -> SignalQuality.FAIR
+            else -> SignalQuality.GOOD
+        }
+        val current = _state.value
+        if (signal != current.signal || current.weak != rebuffering) {
+            _state.value = current.copy(signal = signal, weak = rebuffering)
+        }
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             mainHandler.post {
                 reconnectIfNeeded()
-                _state.value = _state.value.copy(weak = false)
+                publishWeak()
             }
         }
 
         override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
             val down = caps.linkDownstreamBandwidthKbps
-            if (down in 1 until 800) mainHandler.post { _state.value = _state.value.copy(weak = true) }
+            if (down in 1 until 800) mainHandler.post { publishWeak() }
         }
 
         override fun onLost(network: Network) {
-            mainHandler.post { _state.value = _state.value.copy(weak = true) }
+            mainHandler.post { publishWeak() }
         }
     }
 
