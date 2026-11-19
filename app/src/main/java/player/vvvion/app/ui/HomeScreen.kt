@@ -126,6 +126,7 @@ fun HomeScreen(
     val recent by vm.recent.collectAsStateWithLifecycle()
     val epgNow by vm.epgNow.collectAsStateWithLifecycle()
     val favoriteUrls by vm.favoriteUrls.collectAsStateWithLifecycle()
+    val epgSyncStamp = playlists.firstOrNull { it.id == playlistId }?.lastSyncAt
     val typed by vm.typedNumber.collectAsStateWithLifecycle()
     val pinGroup by vm.pinGroup.collectAsStateWithLifecycle()
     val qr by vm.qrPng.collectAsStateWithLifecycle()
@@ -282,6 +283,7 @@ fun HomeScreen(
                                 sort = sort,
                                 epgNow = epgNow,
                                 favoriteUrls = favoriteUrls,
+                                epgSyncStamp = epgSyncStamp,
                                 recent = recent,
                                 favorites = tab == HomeTab.FAVORITES,
                                 typed = typed,
@@ -491,6 +493,7 @@ private fun ChannelColumn(
     sort: ChannelSort,
     epgNow: Map<String, List<player.vvvion.app.data.db.ProgramEntity>>,
     favoriteUrls: Set<String>,
+    epgSyncStamp: Long?,
     recent: List<player.vvvion.app.data.db.HistoryEntity>,
     favorites: Boolean,
     typed: String,
@@ -501,7 +504,7 @@ private fun ChannelColumn(
     onPreview: (ChannelEntity) -> Unit,
 ) {
     val paging = vm.channels.collectAsLazyPagingItems()
-    LaunchedEffect(paging.itemSnapshotList) {
+    LaunchedEffect(paging.itemSnapshotList, epgSyncStamp) {
         vm.onVisible(paging.itemSnapshotList.items.filterNotNull())
     }
     Column(modifier) {
