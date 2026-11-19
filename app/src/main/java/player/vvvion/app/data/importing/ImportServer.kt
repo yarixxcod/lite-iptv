@@ -119,7 +119,7 @@ class ImportServer(
         while (out.size() < 8192) {
             val byte = input.read()
             if (byte == -1) return if (out.size() == 0) null else out.toString("UTF-8")
-            if (byte == 10) return out.toString("UTF-8").trimEnd('\\r')
+            if (byte == 10) return out.toString("UTF-8").trimEnd('\r')
             out.write(byte)
         }
         return null
