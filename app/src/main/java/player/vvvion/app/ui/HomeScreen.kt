@@ -125,6 +125,8 @@ fun HomeScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
     val epgNow by vm.epgNow.collectAsStateWithLifecycle()
+    val favoriteUrls by vm.favoriteUrls.collectAsStateWithLifecycle()
+    val epgSyncStamp = playlists.firstOrNull { it.id == playlistId }?.lastSyncAt
     val typed by vm.typedNumber.collectAsStateWithLifecycle()
     val pinGroup by vm.pinGroup.collectAsStateWithLifecycle()
     val qr by vm.qrPng.collectAsStateWithLifecycle()
@@ -280,6 +282,8 @@ fun HomeScreen(
                                 query = query,
                                 sort = sort,
                                 epgNow = epgNow,
+                                favoriteUrls = favoriteUrls,
+                                epgSyncStamp = epgSyncStamp,
                                 recent = recent,
                                 favorites = tab == HomeTab.FAVORITES,
                                 typed = typed,
@@ -324,6 +328,12 @@ fun HomeScreen(
     if (busy) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Accent)
+        }
+    }
+    LaunchedEffect(message) {
+        if (message != null) {
+            kotlinx.coroutines.delay(4500)
+            vm.message.value = null
         }
     }
     message?.let { code ->
@@ -488,6 +498,8 @@ private fun ChannelColumn(
     query: String,
     sort: ChannelSort,
     epgNow: Map<String, List<player.vvvion.app.data.db.ProgramEntity>>,
+    favoriteUrls: Set<String>,
+    epgSyncStamp: Long?,
     recent: List<player.vvvion.app.data.db.HistoryEntity>,
     favorites: Boolean,
     typed: String,
@@ -498,7 +510,7 @@ private fun ChannelColumn(
     onPreview: (ChannelEntity) -> Unit,
 ) {
     val paging = vm.channels.collectAsLazyPagingItems()
-    LaunchedEffect(paging.itemSnapshotList) {
+    LaunchedEffect(paging.itemSnapshotList, epgSyncStamp) {
         vm.onVisible(paging.itemSnapshotList.items.filterNotNull())
     }
     Column(modifier) {
@@ -587,7 +599,7 @@ private fun ChannelColumn(
                             }
                             IconButton(onClick = { vm.toggleFavorite(channel) }) {
                                 Icon(
-                                    if (favorites) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    if (channel.streamUrl in favoriteUrls) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                 )

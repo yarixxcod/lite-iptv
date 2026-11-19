@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -69,6 +70,10 @@ class AppViewModel(
     val qrPng = MutableStateFlow<android.graphics.Bitmap?>(null)
     val pinGroup = MutableStateFlow<String?>(null)
     val epgNow = MutableStateFlow<Map<String, List<ProgramEntity>>>(emptyMap())
+    val favoriteUrls = selectedPlaylistId.flatMapLatest { id ->
+        if (id < 0) flowOf(emptySet()) else library.observeFavoriteUrls(id).map { it.toSet() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    private var epgRequest: kotlinx.coroutines.Job? = null
     private val unlocked = MutableStateFlow<Set<String>>(emptySet())
     private var importServer: ImportServer? = null
     private var resumed = false
@@ -183,10 +188,13 @@ class AppViewModel(
     fun onVisible(channels: List<ChannelEntity>) {
         val id = selectedPlaylistId.value
         if (id < 0 || channels.isEmpty()) return
-        viewModelScope.launch {
+        epgRequest?.cancel()
+        epgRequest = viewModelScope.launch {
             try {
                 epgNow.value = epgRepo.nowAndNext(id, channels)
-            } catch (_: Throwable) {
+            } catch (error: Exception) {
+                android.util.Log.e("VVVionEPG", "Failed to load current programmes", error)
+                epgNow.value = emptyMap()
             }
         }
     }
@@ -223,6 +231,11 @@ class AppViewModel(
     }
 
     fun save(draft: PlaylistDraft) {
+        val source = draft.url?.trim().orEmpty()
+        if (draft.type == LibraryRepository.TYPE_URL && !source.startsWith("http://", true) && !source.startsWith("https://", true)) {
+            message.value = "Неверный адрес плейлиста. URL должен начинаться с http:// или https://. Проверьте, нет ли лишнего символа перед http."
+            return
+        }
         viewModelScope.launch {
             busy.value = true
             message.value = null
@@ -256,7 +269,7 @@ class AppViewModel(
             message.value = "clipboard"
             return
         }
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        if (trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) {
             save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_URL, url = trimmed))
         } else {
             save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
@@ -280,6 +293,7 @@ class AppViewModel(
                 library.syncPlaylist(id)
                 epgRepo.sync(id, force = true)
                 reloadPlaying(id)
+                epgNow.value = emptyMap()
             } catch (t: Throwable) {
                 message.value = t.message ?: t.javaClass.simpleName
             } finally {

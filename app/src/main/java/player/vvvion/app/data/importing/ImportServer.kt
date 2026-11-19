@@ -68,29 +68,29 @@ class ImportServer(
         socket.use { client ->
             client.soTimeout = 20_000
             val input = client.getInputStream()
-            val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8))
-            val request = reader.readLine() ?: return
+            val request = readHttpLine(input) ?: return
             val parts = request.split(" ")
             if (parts.size < 2) return
             val method = parts[0]
             val path = parts[1].substringBefore("?")
             val headers = HashMap<String, String>()
             while (true) {
-                val line = reader.readLine() ?: break
+                val line = readHttpLine(input) ?: break
                 if (line.isEmpty()) break
                 val idx = line.indexOf(':')
                 if (idx > 0) headers[line.substring(0, idx).trim().lowercase()] = line.substring(idx + 1).trim()
             }
             val length = headers["content-length"]?.toIntOrNull() ?: 0
-            val body = if (length in 1..MAX_BODY) {
-                val buf = CharArray(length)
+            if (length > MAX_BODY) return
+            val body = if (length > 0) {
+                val buf = ByteArray(length)
                 var off = 0
                 while (off < length) {
-                    val n = reader.read(buf, off, length - off)
+                    val n = input.read(buf, off, length - off)
                     if (n < 0) break
                     off += n
                 }
-                String(buf, 0, off)
+                String(buf, 0, off, Charsets.UTF_8)
             } else ""
             val expected = "/i/$token"
             val ok = path == expected || path == "$expected/"
@@ -112,6 +112,17 @@ class ImportServer(
                 out.flush()
             }
         }
+    }
+
+    private fun readHttpLine(input: java.io.InputStream): String? {
+        val out = java.io.ByteArrayOutputStream()
+        while (out.size() < 8192) {
+            val byte = input.read()
+            if (byte == -1) return if (out.size() == 0) null else out.toString("UTF-8")
+            if (byte == 10) return out.toString("UTF-8").trimEnd('\r')
+            out.write(byte)
+        }
+        return null
     }
 
     private fun parseForm(contentType: String, body: String): RemoteImport? {
@@ -196,7 +207,7 @@ class ImportServer(
         <main>
           <h1>VVVION</h1>
           <p class="hint">Send a playlist to this TV. The page works only while Vvvion IPTV is waiting, and nothing is sent anywhere else.</p>
-          <form method="post" enctype="multipart/form-data">
+          <form method="post" enctype="multipart/form-data" id="playlist-form">
             <label>Name</label>
             <input name="name" placeholder="Living room">
             <label>Type</label>
@@ -214,9 +225,23 @@ class ImportServer(
             <label>Password</label>
             <input name="password" type="password">
             <label>Or choose an M3U file</label>
-            <input name="file" type="file" accept=".m3u,.m3u8,text/plain">
+            <input id="playlist-file" type="file" accept=".m3u,.m3u8,text/plain">
+            <textarea name="file" id="playlist-text" hidden></textarea>
             <button type="submit">Add on TV</button>
           </form>
+          <script>
+            const form = document.getElementById("playlist-form");
+            form.addEventListener("submit", async function(event) {
+              const type = form.elements.namedItem("kind").value;
+              if (type !== "file") return;
+              event.preventDefault();
+              const file = document.getElementById("playlist-file").files[0];
+              if (!file) { alert("Choose an M3U file"); return; }
+              if (file.size > 8 * 1024 * 1024) { alert("File is too large (max 8 MB)"); return; }
+              document.getElementById("playlist-text").value = await file.text();
+              form.submit();
+            });
+          </script>
         </main>
     """.trimIndent()
 

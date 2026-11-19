@@ -127,9 +127,18 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     try {
                         scheduler.ensureAll()
+                    } catch (error: Exception) {
+                        android.util.Log.e("VVVionStartup", "Scheduler initialization failed", error)
+                    }
+                    try {
                         appVm.maybeResume()
+                    } catch (error: Exception) {
+                        android.util.Log.e("VVVionStartup", "Playback resume failed", error)
+                    }
+                    try {
                         appVm.checkForUpdate(quiet = true)
-                    } catch (_: Throwable) {
+                    } catch (error: Exception) {
+                        android.util.Log.e("VVVionStartup", "Update check failed", error)
                     }
                 }
             }
@@ -160,12 +169,24 @@ class MainActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && !playback.textFocused.value) {
             when (event.keyCode) {
-                KeyEvent.KEYCODE_CHANNEL_UP -> {
+                KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> {
                     playback.zap.tryEmit(1)
                     return true
                 }
-                KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> {
                     playback.zap.tryEmit(-1)
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    if (engine.state.value.playing) engine.pause() else engine.resume()
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    engine.resume()
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    engine.pause()
                     return true
                 }
                 in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {

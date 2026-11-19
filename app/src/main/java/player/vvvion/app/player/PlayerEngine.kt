@@ -9,6 +9,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.Looper
+import android.os.Handler
 import android.view.TextureView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -72,15 +73,12 @@ class PlayerEngine(
     private var urls: List<String> = emptyList()
     private var urlIndex = 0
     private var networkHooked = false
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var texture: TextureView? = null
     private val bandwidthMeter by lazy {
         DefaultBandwidthMeter.Builder(appContext)
             .setInitialBitrateEstimate(350_000L)
             .build()
-    }
-
-    init {
-        installPlaybackGuard()
     }
 
     fun player(): ExoPlayer? = player
@@ -195,8 +193,11 @@ class PlayerEngine(
             cm.unregisterNetworkCallback(networkCallback)
         } catch (_: Exception) {
         }
+        networkHooked = false
         player?.release()
         player = null
+        profile = null
+        userAgent = null
     }
 
     private fun select(choice: TrackChoice, type: Int) {
@@ -347,17 +348,19 @@ class PlayerEngine(
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            reconnectIfNeeded()
-            _state.value = _state.value.copy(weak = false)
+            mainHandler.post {
+                reconnectIfNeeded()
+                _state.value = _state.value.copy(weak = false)
+            }
         }
 
         override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
             val down = caps.linkDownstreamBandwidthKbps
-            if (down in 1 until 800) _state.value = _state.value.copy(weak = true)
+            if (down in 1 until 800) mainHandler.post { _state.value = _state.value.copy(weak = true) }
         }
 
         override fun onLost(network: Network) {
-            _state.value = _state.value.copy(weak = true)
+            mainHandler.post { _state.value = _state.value.copy(weak = true) }
         }
     }
 
@@ -381,21 +384,6 @@ class PlayerEngine(
         )
     }
 
-    private fun installPlaybackGuard() {
-        if (guardInstalled) return
-        guardInstalled = true
-        val previous = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val media = thread.name.contains("ExoPlayer", ignoreCase = true) ||
-                throwable.stackTrace.any { it.className.startsWith("androidx.media3.") }
-            if (media && thread != Looper.getMainLooper().thread) {
-                reportPlayback(throwable)
-            } else {
-                previous?.uncaughtException(thread, throwable)
-            }
-        }
-    }
-
     private fun mimeFor(url: String): String? {
         val lower = url.lowercase().substringBefore('?')
         return when {
@@ -406,7 +394,4 @@ class PlayerEngine(
         }
     }
 
-    private companion object {
-        private var guardInstalled = false
-    }
 }

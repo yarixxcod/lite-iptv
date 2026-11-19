@@ -68,6 +68,8 @@ class LibraryRepository(
 
     fun recent() = db.history().recent()
 
+    fun observeFavoriteUrls(playlistId: Long): Flow<List<String>> = db.favorites().observeUrls(playlistId)
+
     suspend fun playlist(id: Long): PlaylistEntity? = withContext(Dispatchers.IO) { db.playlists().get(id) }
 
     suspend fun channel(id: Long): ChannelEntity? = db.channels().byId(id)
