@@ -170,4 +170,16 @@
     <string name="player_favorite">Favourite</string>
     <string name="quality_hd">HD</string>
     <string name="remaining_minutes">%1$d min left</string>
+    <string name="day_yesterday">Yesterday</string>
+    <string name="day_today">Today</string>
+    <string name="day_tomorrow">Tomorrow</string>
+    <string name="now_live">Now</string>
+    <string name="guide_no_description">No description</string>
+    <string name="player_fav_short">Fav</string>
+    <string name="player_aspect_short">Aspect</string>
+    <string name="player_audio_short">Audio</string>
+    <string name="player_subs_short">Subs</string>
+    <string name="player_sleep_short">Sleep</string>
+    <string name="player_last_short">Last</string>
+    <string name="player_list_short">List</string>
 </resources>

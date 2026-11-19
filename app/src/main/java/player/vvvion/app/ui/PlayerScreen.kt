@@ -13,6 +13,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,15 +51,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -289,17 +293,12 @@ fun PlayerPane(
                 onRelease = { view -> vm.detachTexture(view) },
             )
         }
-        if (state.rebuffering && state.error == null) {
-            Row(
-                Modifier.align(Alignment.Center).clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Accent)
-                Spacer(Modifier.width(10.dp))
-                Text(stringResource(R.string.buffering), color = Color.White)
-            }
+        if (state.rebuffering && state.error == null && !(controls && showControls)) {
+            CircularProgressIndicator(
+                Modifier.align(Alignment.Center).size(28.dp),
+                strokeWidth = 2.dp,
+                color = Accent,
+            )
         }
         if (typed.isNotEmpty()) {
             Text(typed, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.TopStart).padding(24.dp), color = Color.White)
@@ -335,39 +334,26 @@ fun PlayerPane(
                 style = MaterialTheme.typography.titleMedium,
             )
         }
-        Row(
-            Modifier.align(Alignment.TopEnd).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            qualityLabel(state.videoWidth, state.videoHeight)?.let { label ->
-                Text(
-                    label,
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                )
-            }
-            SignalBadge(quality = state.signal)
-        }
         if (controls && showControls) {
-            Box(
+            BoxWithConstraints(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f)),
-                        ),
-                    )
-                    .padding(start = 24.dp, end = 24.dp, top = 36.dp, bottom = 20.dp),
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)))),
             ) {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        PlayerLogo(channel?.logo, channel?.name)
+                val side = maxWidth * 0.05f
+                val bottom = 18.dp
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = side, end = side, top = 20.dp, bottom = bottom)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xE6101014))
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        PlayerLogo(channel?.logo, channel?.name, size = 56.dp)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -375,80 +361,105 @@ fun PlayerPane(
                                     Icon(
                                         Icons.Filled.Favorite,
                                         contentDescription = null,
-                                        tint = Color(0xFFFF8A80),
-                                        modifier = Modifier.size(22.dp).padding(end = 6.dp),
+                                        tint = Color(0xFFFF5252),
+                                        modifier = Modifier.size(20.dp).padding(end = 6.dp),
                                     )
                                 }
                                 Text(
                                     channel?.let { "${it.number}  ${it.name}" } ?: stringResource(R.string.app_name),
-                                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 30.sp, fontWeight = FontWeight.SemiBold),
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                                     color = Color.White,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
                                 )
                             }
                             val nowTitle = now?.title ?: stringResource(R.string.no_program_short)
                             val nowTimes = now?.let { clock(it.startUtc) + "–" + clock(it.stopUtc) }
                             Text(
                                 stringResource(R.string.now) + "  " + (nowTimes?.let { "$it  " } ?: "") + nowTitle,
-                                color = Color.White.copy(alpha = 0.9f),
-                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White.copy(alpha = 0.92f),
+                                style = MaterialTheme.typography.bodyLarge,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            next?.let {
+                                Text(
+                                    stringResource(R.string.next) + "  " + clock(it.startUtc) + "–" + clock(it.stopUtc) + "  " + it.title,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            sleep?.let { Text(stringResource(R.string.player_sleep) + " " + it, color = Accent, style = MaterialTheme.typography.bodyMedium) }
                         }
-                        OverlayClock()
-                    }
-                    if (now != null) {
-                        LinearProgressIndicator(
-                            progress = { programProgress(now) },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(99.dp)),
-                            color = Accent,
-                            trackColor = Color.White.copy(alpha = 0.2f),
-                        )
-                        val leftMin = ((now.stopUtc - System.currentTimeMillis()) / 60_000L).toInt().coerceAtLeast(0)
-                        Text(stringResource(R.string.remaining_minutes, leftMin), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
-                    }
-                    next?.let {
-                        Text(
-                            stringResource(R.string.next) + "  " + clock(it.startUtc) + "–" + clock(it.stopUtc) + "  " + it.title,
-                            color = Color.White.copy(alpha = 0.75f),
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    sleep?.let { Text(stringResource(R.string.player_sleep) + " " + it, color = Accent, style = MaterialTheme.typography.titleMedium) }
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            HudAction(
-                                label = stringResource(R.string.player_favorite),
-                                icon = if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                accent = favorite,
-                                focusRequester = favoriteFocus,
-                                onClick = { toggleFavorite(); bumpHide() },
-                                onUsed = { bumpHide() },
-                            )
-                            HudAction(label = stringResource(R.string.player_aspect), onClick = { menu = if (menu == "aspect") null else "aspect"; bumpHide() }, onUsed = { bumpHide() })
-                            HudAction(label = stringResource(R.string.player_audio), onClick = { menu = if (menu == "audio") null else "audio"; bumpHide() }, onUsed = { bumpHide() })
-                            HudAction(label = stringResource(R.string.player_subs), onClick = { menu = if (menu == "subs") null else "subs"; bumpHide() }, onUsed = { bumpHide() })
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            HudAction(label = stringResource(R.string.player_sleep), onClick = { menu = if (menu == "sleep") null else "sleep"; bumpHide() }, onUsed = { bumpHide() })
-                            HudAction(label = stringResource(R.string.player_last_channel), onClick = { vm.swapLast(); bumpHide() }, onUsed = { bumpHide() })
-                            HudAction(
-                                label = stringResource(R.string.player_channels),
-                                icon = Icons.Filled.List,
-                                onClick = { vm.close() },
-                                onUsed = { bumpHide() },
-                            )
-                            if (vm.hasBackup()) {
-                                HudAction(label = stringResource(R.string.next_source), onClick = { vm.nextSource(); bumpHide() }, onUsed = { bumpHide() })
+                        Spacer(Modifier.width(10.dp))
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (state.rebuffering && state.error == null) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Accent)
+                                }
+                                OverlayClock()
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                qualityLabel(state.videoWidth, state.videoHeight)?.let { label ->
+                                    Text(
+                                        label,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color.White.copy(alpha = 0.15f))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    )
+                                }
+                                SignalBadge(quality = state.signal)
                             }
                         }
                     }
+                    if (now != null) {
+                        val leftMin = ((now.stopUtc - System.currentTimeMillis()) / 60_000L).toInt().coerceAtLeast(0)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            LinearProgressIndicator(
+                                progress = { programProgress(now) },
+                                modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(99.dp)),
+                                color = Accent,
+                                trackColor = Color.White.copy(alpha = 0.22f),
+                            )
+                            Text(
+                                stringResource(R.string.remaining_minutes, leftMin),
+                                color = Color.White.copy(alpha = 0.75f),
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(start = 10.dp),
+                            )
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HudIconAction(
+                            label = stringResource(R.string.player_fav_short),
+                            vector = if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            favorite = favorite,
+                            focusRequester = favoriteFocus,
+                            onClick = { toggleFavorite(); bumpHide() },
+                            onUsed = { bumpHide() },
+                        )
+                        HudIconAction(label = stringResource(R.string.player_aspect_short), painter = painterResource(R.drawable.ic_hud_aspect), onClick = { menu = if (menu == "aspect") null else "aspect"; bumpHide() }, onUsed = { bumpHide() })
+                        HudIconAction(label = stringResource(R.string.player_audio_short), painter = painterResource(R.drawable.ic_hud_audio), onClick = { menu = if (menu == "audio") null else "audio"; bumpHide() }, onUsed = { bumpHide() })
+                        HudIconAction(label = stringResource(R.string.player_subs_short), painter = painterResource(R.drawable.ic_hud_subs), onClick = { menu = if (menu == "subs") null else "subs"; bumpHide() }, onUsed = { bumpHide() })
+                        HudIconAction(label = stringResource(R.string.player_sleep_short), painter = painterResource(R.drawable.ic_hud_sleep), onClick = { menu = if (menu == "sleep") null else "sleep"; bumpHide() }, onUsed = { bumpHide() })
+                        HudIconAction(label = stringResource(R.string.player_last_short), painter = painterResource(R.drawable.ic_hud_last), onClick = { vm.swapLast(); bumpHide() }, onUsed = { bumpHide() })
+                        HudIconAction(label = stringResource(R.string.player_list_short), vector = Icons.Filled.List, onClick = { vm.close() }, onUsed = { bumpHide() })
+                        if (vm.hasBackup()) {
+                            HudIconAction(label = stringResource(R.string.next_source), painter = painterResource(R.drawable.ic_hud_last), onClick = { vm.nextSource(); bumpHide() }, onUsed = { bumpHide() })
+                        }
+                    }
                     when (menu) {
-                        "aspect" -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        "aspect" -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AspectMode.entries.forEach { mode ->
                                 HudAction(
                                     label = aspectLabel(mode),
@@ -476,12 +487,12 @@ fun PlayerPane(
                 }
             }
         } else if (controls && miniInfo) {
-            MiniZapInfo(channel, now, favorite, Modifier.align(Alignment.BottomStart).padding(20.dp))
+            MiniZapInfo(channel, now, favorite, Modifier.align(Alignment.BottomStart).padding(start = 48.dp, end = 48.dp, bottom = 28.dp))
         } else if (!controls) {
-            Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                Text(channel?.name ?: stringResource(R.string.no_program), style = MaterialTheme.typography.titleMedium, color = Color.White)
-                Text(now?.title ?: stringResource(R.string.no_program_short), color = Muted, maxLines = 1)
-                LinearProgressIndicator(progress = { programProgress(now) }, modifier = Modifier.fillMaxWidth(0.55f).padding(top = 6.dp))
+            Column(Modifier.align(Alignment.BottomStart).padding(16.dp).fillMaxWidth(0.9f)) {
+                Text(channel?.name ?: stringResource(R.string.no_program), style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(now?.title ?: stringResource(R.string.no_program_short), color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                LinearProgressIndicator(progress = { programProgress(now) }, modifier = Modifier.fillMaxWidth(0.55f).padding(top = 6.dp).height(4.dp).clip(RoundedCornerShape(99.dp)))
             }
         }
     }
@@ -538,28 +549,91 @@ private fun HudAction(
     focusRequester: FocusRequester? = null,
 ) {
     val shape = RoundedCornerShape(14.dp)
+    var focused by remember { mutableStateOf(false) }
+    val filled = accent || focused
     Row(
         modifier
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .heightIn(min = 56.dp)
+            .heightIn(min = 48.dp)
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onUsed()
+            }
+            .focusable()
             .clip(shape)
-            .background(if (accent) Accent.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.12f), shape)
-            .tvControl(onFocused = onUsed)
+            .background(if (filled) Accent else Color.White.copy(alpha = 0.12f), shape)
             .clickable {
                 onUsed()
                 onClick()
             }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = if (accent) AccentInk else Color.White, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = if (filled) AccentInk else Color.White, modifier = Modifier.size(20.dp))
         }
         Text(
             label,
-            color = if (accent) AccentInk else Color.White,
-            style = MaterialTheme.typography.titleMedium,
+            color = if (filled) AccentInk else Color.White,
+            style = MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun HudIconAction(
+    label: String,
+    onClick: () -> Unit,
+    onUsed: () -> Unit,
+    modifier: Modifier = Modifier,
+    vector: ImageVector? = null,
+    painter: Painter? = null,
+    favorite: Boolean = false,
+    focusRequester: FocusRequester? = null,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    var focused by remember { mutableStateOf(false) }
+    val fill = if (focused) Accent else Color.Transparent
+    val iconTint = when {
+        focused -> AccentInk
+        favorite -> Color(0xFFFF5252)
+        else -> Color.White.copy(alpha = 0.7f)
+    }
+    val scale = if (focused) 1.08f else 1f
+    Column(
+        modifier
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onUsed()
+            }
+            .focusable()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .background(fill, shape)
+            .clickable {
+                onUsed()
+                onClick()
+            }
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .widthIn(min = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (vector != null) {
+            Icon(vector, contentDescription = label, tint = iconTint, modifier = Modifier.size(26.dp))
+        } else if (painter != null) {
+            Icon(painter = painter, contentDescription = label, tint = iconTint, modifier = Modifier.size(26.dp))
+        }
+        Text(
+            label,
+            color = if (focused) AccentInk else Color.White.copy(alpha = if (focused) 1f else 0.7f),
+            style = MaterialTheme.typography.labelMedium,
             maxLines = 1,
         )
     }
@@ -619,30 +693,30 @@ private fun OverlayClock() {
             delay(15_000)
         }
     }
-    Text(clock(nowMs), style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp), color = Color.White, modifier = Modifier.padding(start = 12.dp))
+    Text(clock(nowMs), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Medium), color = Color.White)
 }
 
 @Composable
-private fun PlayerLogo(url: String?, name: String?, size: androidx.compose.ui.unit.Dp = 64.dp) {
+private fun PlayerLogo(url: String?, name: String?, size: androidx.compose.ui.unit.Dp = 56.dp) {
     val shape = RoundedCornerShape(12.dp)
     val initials = channelInitials(name)
     val tile = initialsColor(name)
-    if (url.isNullOrBlank()) {
-        Box(Modifier.size(size).clip(shape).background(tile), contentAlignment = Alignment.Center) {
-            Text(initials, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+    Box(Modifier.size(size).clip(shape).background(tile), contentAlignment = Alignment.Center) {
+        Text(initials, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        if (!url.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(url)
+                    .size(128)
+                    .bitmapConfig(Bitmap.Config.ARGB_8888)
+                    .crossfade(false)
+                    .allowHardware(false)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier.size(size).clip(shape),
+                contentScale = ContentScale.Fit,
+            )
         }
-    } else {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(url)
-                .size(96)
-                .bitmapConfig(Bitmap.Config.RGB_565)
-                .crossfade(false)
-                .build(),
-            contentDescription = null,
-            modifier = Modifier.size(size).clip(shape).background(tile),
-            contentScale = ContentScale.Fit,
-        )
     }
 }
 

@@ -170,4 +170,16 @@
     <string name="player_favorite">Избранное</string>
     <string name="quality_hd">HD</string>
     <string name="remaining_minutes">ещё %1$d мин</string>
+    <string name="day_yesterday">Вчера</string>
+    <string name="day_today">Сегодня</string>
+    <string name="day_tomorrow">Завтра</string>
+    <string name="now_live">Сейчас</string>
+    <string name="guide_no_description">Нет описания</string>
+    <string name="player_fav_short">Избр.</string>
+    <string name="player_aspect_short">Формат</string>
+    <string name="player_audio_short">Звук</string>
+    <string name="player_subs_short">Субт.</string>
+    <string name="player_sleep_short">Таймер</string>
+    <string name="player_last_short">Прошл.</string>
+    <string name="player_list_short">Список</string>
 </resources>
