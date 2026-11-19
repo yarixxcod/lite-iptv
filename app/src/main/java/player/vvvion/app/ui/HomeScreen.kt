@@ -5,7 +5,10 @@ package player.vvvion.app.ui
 import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -71,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
@@ -444,7 +448,8 @@ private fun GroupColumn(
     LazyColumn(modifier.background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(8.dp)) {
         item {
             GroupCard(
-                title = stringResource(R.string.all_groups) + "  " + allCount,
+                name = stringResource(R.string.all_groups),
+                count = allCount,
                 selected = selected.isEmpty(),
                 locked = false,
                 television = television,
@@ -456,7 +461,8 @@ private fun GroupColumn(
         items(rows, key = { it.title }, contentType = { "group" }) { row ->
             val isLocked = lockKey(playlistId, row.title) in locked
             GroupCard(
-                title = "${row.title}  ${row.count}",
+                name = row.title,
+                count = row.count,
                 selected = selected == row.title,
                 locked = isLocked,
                 television = television,
@@ -472,9 +478,11 @@ private fun Modifier.tvFocus(enabled: Boolean, onFocused: () -> Unit = {}): Modi
     tvFocusable(enabled = enabled, shape = RoundedCornerShape(16.dp), onFocused = onFocused)
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupCard(
-    title: String,
+    name: String,
+    count: Int,
     selected: Boolean,
     locked: Boolean,
     television: Boolean,
@@ -482,10 +490,12 @@ private fun GroupCard(
     onLock: (() -> Unit)?,
     onRemove: (() -> Unit)?,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = if (television) 6.dp else 4.dp)
+            .onFocusChanged { focused = it.isFocused }
             .tvFocus(television)
             .onKeyEvent { event ->
                 if (onRemove == null || event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -505,11 +515,19 @@ private fun GroupCard(
         ),
     ) {
         ListItem(
-            headlineContent = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            headlineContent = {
+                Text(
+                    name,
+                    maxLines = if (focused) 1 else 2,
+                    overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    modifier = if (focused) Modifier.basicMarquee() else Modifier,
+                )
+            },
+            supportingContent = { Text(count.toString(), color = Muted) },
             trailingContent = when {
-                onLock != null -> {
+                locked || (focused && onLock != null) -> {
                     {
-                        IconButton(onClick = onLock, modifier = Modifier.tvControl()) {
+                        IconButton(onClick = { onLock?.invoke() }, modifier = Modifier.tvControl()) {
                             Icon(
                                 Icons.Filled.Lock,
                                 contentDescription = stringResource(R.string.lock_group),
@@ -517,9 +535,6 @@ private fun GroupCard(
                             )
                         }
                     }
-                }
-                locked -> {
-                    { Icon(Icons.Filled.Lock, contentDescription = null) }
                 }
                 else -> null
             },
@@ -573,9 +588,26 @@ private fun ChannelColumn(
             if (typed.isNotEmpty()) Text(typed, color = Accent, modifier = Modifier.align(Alignment.CenterVertically))
         }
         if (!favorites && recent.isNotEmpty()) {
-            LazyRow(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.recent_channels),
+                color = Muted,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+            LazyRow(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(recent, key = { it.playlistId.toString() + it.streamUrl }, contentType = { "recent" }) { item ->
-                    TextButton(onClick = { vm.openHistory(item.channelId) }) { Text(item.channelName, maxLines = 1) }
+                    Card(
+                        modifier = Modifier.width(150.dp).tvControl().clickable { vm.openHistory(item.channelId) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                    ) {
+                        Text(
+                            item.channelName,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        )
+                    }
                 }
             }
         }
@@ -660,7 +692,7 @@ private fun ChannelProgramLine(programs: List<player.vvvion.app.data.db.ProgramE
     }
     Column {
         Text(
-            now?.title ?: stringResource(R.string.no_program),
+            now?.title ?: stringResource(R.string.no_program_short),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
