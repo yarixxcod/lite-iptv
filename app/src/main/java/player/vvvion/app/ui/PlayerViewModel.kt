@@ -8,6 +8,7 @@ import player.vvvion.app.data.prefs.SettingsStore
 import player.vvvion.app.data.repo.EpgRepository
 import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.altList
+import player.vvvion.app.domain.AspectMode
 import player.vvvion.app.domain.HiddenGroups
 import player.vvvion.app.player.EngineState
 import player.vvvion.app.player.PlaybackCoordinator
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -37,6 +39,10 @@ class PlayerViewModel(
     val channel = playback.channel
     val sleepLabel = MutableStateFlow<String?>(null)
     val typedNumber = MutableStateFlow("")
+    val favorite = playback.channel.flatMapLatest { current ->
+        if (current == null) flowOf(false) else library.observeFavorite(current.playlistId, current.streamUrl)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     val programs = playback.channel.flatMapLatest { current ->
         if (current == null) flowOf(emptyList()) else epgRepo.upcoming(current)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -127,6 +133,8 @@ class PlayerViewModel(
 
     fun cycleAspect() = engine.cycleAspect()
 
+    fun setAspect(mode: AspectMode) = engine.setAspect(mode)
+
     fun selectAudio(choice: TrackChoice) = engine.selectAudio(choice)
 
     fun selectSubtitle(choice: TrackChoice?) = engine.selectSubtitle(choice)
@@ -154,6 +162,15 @@ class PlayerViewModel(
     }
 
     fun close() = playback.closeFull()
+
+    fun toggleFavorite(done: (Boolean) -> Unit = {}) {
+        val current = playback.channel.value ?: return
+        viewModelScope.launch {
+            library.toggleFavorite(current)
+            done(library.isFavorite(current.playlistId, current.streamUrl))
+        }
+    }
+
 
     private suspend fun excludedTitles(playlistId: Long): Set<String> {
         val hidden = settingsStore.settings.first().hiddenGroups

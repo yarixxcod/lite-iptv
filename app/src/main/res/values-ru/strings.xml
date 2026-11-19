@@ -7,7 +7,7 @@
     <string name="tab_settings">Настройки</string>
     <string name="add_playlist">Добавить плейлист</string>
     <string name="no_playlists">Добавьте ссылку M3U, логин Xtream или файл — с экрана или с телефона.</string>
-    <string name="search">Поиск каналов</string>
+    <string name="search">Поиск</string>
     <string name="all_groups">Все</string>
     <string name="favorites_empty">Избранного пока нет. Удерживайте канал или нажмите сердце.</string>
     <string name="channels_empty">В этом списке нет каналов.</string>
@@ -120,7 +120,7 @@
     <string name="update_source">Адрес манифеста (пусто — GitHub)</string>
     <string name="update_install_permission">Разрешите установку обновлений и повторите</string>
     <string name="update_panel">Загрузка сборок: cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/</string>
-    <string name="press_ok_to_edit">Нажмите OK, чтобы изменить</string>
+    <string name="press_ok_to_edit">Нажмите OK</string>
     <string name="url_invalid_scheme">Адрес плейлиста должен начинаться с http:// или https://. Проверьте, нет ли лишнего символа перед http.</string>
     <string name="url_invalid_empty">Укажите адрес плейлиста.</string>
     <string name="playlist_added">Плейлист добавлен</string>
@@ -163,4 +163,11 @@
     <string name="settings_section_updates">Обновления</string>
     <string name="settings_section_about">О приложении</string>
     <string name="settings_buffer_auto_hint">Авто увеличивает буфер после задержек, удобнее для долгого просмотра.</string>
+    <string name="player_last_channel">Предыдущий канал</string>
+    <string name="favorite_added">Добавлено в избранное</string>
+    <string name="favorite_removed">Убрано из избранного</string>
+    <string name="player_channels">Список каналов</string>
+    <string name="player_favorite">Избранное</string>
+    <string name="quality_hd">HD</string>
+    <string name="remaining_minutes">ещё %1$d мин</string>
 </resources>

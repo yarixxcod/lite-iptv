@@ -182,7 +182,11 @@ class PlayerEngine(
 
     fun cycleAspect() {
         val next = AspectMode.entries[( _state.value.aspect.ordinal + 1) % AspectMode.entries.size]
-        _state.value = _state.value.copy(aspect = next)
+        setAspect(next)
+    }
+
+    fun setAspect(mode: AspectMode) {
+        _state.value = _state.value.copy(aspect = mode)
     }
 
     fun selectAudio(choice: TrackChoice) = select(choice, C.TRACK_TYPE_AUDIO)

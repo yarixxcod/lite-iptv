@@ -25,6 +25,7 @@ import player.vvvion.app.domain.ChannelDeduper
 import player.vvvion.app.domain.FavoritesLogic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -72,6 +73,9 @@ class LibraryRepository(
     fun recent() = db.history().recent()
 
     fun observeFavoriteUrls(playlistId: Long): Flow<List<String>> = db.favorites().observeUrls(playlistId)
+
+    fun observeFavorite(playlistId: Long, url: String): Flow<Boolean> =
+        db.favorites().isFavorite(playlistId, url).map { it > 0 }
 
     suspend fun playlist(id: Long): PlaylistEntity? = withContext(Dispatchers.IO) { db.playlists().get(id) }
 
