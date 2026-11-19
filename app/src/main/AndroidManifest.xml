@@ -19,6 +19,7 @@
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
 
     <application
+        android:localeConfig="@xml/locales_config"
         android:name=".LiteApp"
         android:allowBackup="true"
         android:banner="@drawable/tv_banner"

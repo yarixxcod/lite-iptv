@@ -68,9 +68,11 @@ class PlayerEngine(
     private var urls: List<String> = emptyList()
     private var urlIndex = 0
     private var networkHooked = false
-    private val bandwidthMeter = DefaultBandwidthMeter.Builder(appContext)
-        .setInitialBitrateEstimate(350_000L)
-        .build()
+    private val bandwidthMeter by lazy {
+        DefaultBandwidthMeter.Builder(appContext)
+            .setInitialBitrateEstimate(350_000L)
+            .build()
+    }
 
     fun player(): ExoPlayer? = player
 

@@ -22,17 +22,20 @@ class LiteApp : Application() {
             modules(appModule)
         }
         val http = GlobalContext.get().get<HttpClients>()
-        Coil.setImageLoader(
-            ImageLoader.Builder(this)
-                .callFactory(http.playlist)
-                .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.15).build() }
-                .diskCache {
-                    DiskCache.Builder()
-                        .directory(cacheDir.resolve("logos"))
-                        .maxSizeBytes(80L * 1024 * 1024)
-                        .build()
-                }
-                .build(),
-        )
+        try {
+            Coil.setImageLoader(
+                ImageLoader.Builder(this)
+                    .callFactory(http.playlist)
+                    .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.15).build() }
+                    .diskCache {
+                        DiskCache.Builder()
+                            .directory(cacheDir.resolve("logos"))
+                            .maxSizeBytes(80L * 1024 * 1024)
+                            .build()
+                    }
+                    .build(),
+            )
+        } catch (_: Throwable) {
+        }
     }
 }

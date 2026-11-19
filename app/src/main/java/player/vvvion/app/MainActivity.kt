@@ -15,8 +15,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.os.LocaleListCompat
@@ -60,7 +60,6 @@ class MainActivity : AppCompatActivity() {
         appVm.importFile(uri.toString(), name)
     }
 
-    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
@@ -83,7 +82,12 @@ class MainActivity : AppCompatActivity() {
             val settings by appVm.settings.collectAsStateWithLifecycle()
             val fullscreen by playerVm.fullscreen.collectAsStateWithLifecycle()
             VvvionTheme(amoled = settings.amoled) {
-                val width = calculateWindowSizeClass(this@MainActivity).widthSizeClass
+                val dp = LocalConfiguration.current.screenWidthDp
+                val width = when {
+                    dp < 600 -> WindowWidthSizeClass.Compact
+                    dp < 840 -> WindowWidthSizeClass.Medium
+                    else -> WindowWidthSizeClass.Expanded
+                }
                 Box(Modifier.fillMaxSize()) {
                     HomeScreen(
                         vm = appVm,
@@ -174,9 +178,21 @@ class MainActivity : AppCompatActivity() {
     private fun applyLanguage(code: String) {
         if (appliedLanguage == code) return
         appliedLanguage = code
-        val locales = if (code == "system" || code.isBlank()) LocaleListCompat.getEmptyLocaleList()
-        else LocaleListCompat.forLanguageTags(code)
-        AppCompatDelegate.setApplicationLocales(locales)
+        val desired = if (code == "system" || code.isBlank()) {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(code)
+        }
+        val current = try {
+            AppCompatDelegate.getApplicationLocales()
+        } catch (_: Throwable) {
+            null
+        }
+        if (current == desired) return
+        try {
+            AppCompatDelegate.setApplicationLocales(desired)
+        } catch (_: Throwable) {
+        }
     }
 
     private fun inPip(): Boolean = Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode

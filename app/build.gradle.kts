@@ -20,8 +20,8 @@ android {
         applicationId = "player.vvvion.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -121,7 +121,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons)
     implementation(libs.androidx.window.size)
-    implementation(libs.androidx.tv.material)
     implementation(libs.androidx.profileinstaller)
 
     implementation(libs.androidx.media3.exoplayer)

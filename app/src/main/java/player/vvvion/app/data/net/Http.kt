@@ -14,7 +14,7 @@ data class HttpClients(
     val player: OkHttpClient,
 )
 
-const val DEFAULT_USER_AGENT = "VvvionIPTV/1.0.0 (Android)"
+const val DEFAULT_USER_AGENT = "VvvionIPTV/1.0.1 (Android)"
 
 fun createHttpClients(context: Context): HttpClients {
     val pool = ConnectionPool(8, 5, TimeUnit.MINUTES)

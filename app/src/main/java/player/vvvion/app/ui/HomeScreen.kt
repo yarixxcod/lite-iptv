@@ -1,9 +1,10 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.tv.material3.ExperimentalTvMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package player.vvvion.app.ui
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,8 +71,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
-import androidx.tv.material3.Card
-import androidx.tv.material3.ExperimentalTvMaterial3Api
 import player.vvvion.app.BuildConfig
 import player.vvvion.app.R
 import player.vvvion.app.data.db.ChannelEntity
@@ -85,7 +85,6 @@ import player.vvvion.app.update.RemoteUpdate
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 
-@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     vm: AppViewModel,
@@ -324,10 +323,24 @@ private fun NavRail(tab: HomeTab, onTab: (HomeTab) -> Unit, vertical: Boolean) {
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun VvvionCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        content = content,
+    )
+}
+
 @Composable
 private fun RailButton(label: String, selected: Boolean, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    VvvionCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Text(
             label,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 14.dp),
@@ -354,7 +367,6 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun GroupColumn(
     groups: List<player.vvvion.app.data.db.GroupRow>,
@@ -382,10 +394,9 @@ private fun GroupColumn(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun GroupCard(title: String, selected: Boolean, locked: Boolean, onClick: () -> Unit, onLock: (() -> Unit)?) {
-    Card(onClick = onClick, onLongClick = onLock, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    VvvionCard(onClick = onClick, onLongClick = onLock, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = if (selected) Accent else Mist, modifier = Modifier.weight(1f), maxLines = 2)
             if (locked) Icon(Icons.Filled.Lock, contentDescription = null, tint = Accent)
@@ -393,7 +404,6 @@ private fun GroupCard(title: String, selected: Boolean, locked: Boolean, onClick
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun ChannelColumn(
     vm: AppViewModel,
@@ -444,7 +454,7 @@ private fun ChannelColumn(
                 val channel = paging[index] ?: return@items
                 val programs = epgNow[channel.epgKey].orEmpty()
                 val now = programs.firstOrNull { it.startUtc <= System.currentTimeMillis() && it.stopUtc > System.currentTimeMillis() }
-                Card(
+                VvvionCard(
                     onClick = { onPreview(channel); onOpen(channel) },
                     onLongClick = { vm.toggleFavorite(channel) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
