@@ -199,6 +199,9 @@ interface ChannelDao {
 
 @Dao
 interface FavoriteDao {
+    @Query("SELECT streamUrl FROM favorites WHERE playlistId = :playlistId")
+    fun observeUrls(playlistId: Long): Flow<List<String>>
+
     @Query("SELECT streamUrl FROM favorites WHERE playlistId = :playlistId ORDER BY sortOrder ASC")
     suspend fun urls(playlistId: Long): List<String>
 
