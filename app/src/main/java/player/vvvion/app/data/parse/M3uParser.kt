@@ -140,7 +140,7 @@ internal fun parseAttributes(input: String): Map<String, String> {
             while (i < s.length && !s[i].isWhitespace()) i++
             s.substring(start, i)
         }
-        out[key] = value
+        out[key] = decodeXmlEntities(value)
     }
     return out
 }

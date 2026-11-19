@@ -14,6 +14,7 @@ class XmltvParser {
         windowEnd: Long,
         offsetMinutes: Int = 0,
         batchSize: Int = 300,
+        onChannel: (id: String, names: List<String>) -> Unit = { _, _ -> },
         onBatch: (List<ParsedProgram>) -> Unit,
     ): Int {
         val reader = PushbackReader(input.reader(charset), 128)
@@ -21,7 +22,12 @@ class XmltvParser {
         val batch = ArrayList<ParsedProgram>(batchSize)
         while (true) {
             val tag = nextTag(reader) ?: break
-            if (tag.closing || tag.name != "programme") continue
+            if (tag.closing) continue
+            if (tag.name == "channel") {
+                readChannel(reader, tag, onChannel)
+                continue
+            }
+            if (tag.name != "programme") continue
             val channel = tag.attrs["channel"].orEmpty()
             val start = parseXmltvTime(tag.attrs["start"]) ?: continue
             val stop = parseXmltvTime(tag.attrs["stop"]) ?: continue
@@ -61,6 +67,27 @@ class XmltvParser {
         }
         if (batch.isNotEmpty()) onBatch(batch.toList())
         return count
+    }
+
+    private fun readChannel(reader: PushbackReader, open: Tag, onChannel: (String, List<String>) -> Unit) {
+        val id = open.attrs["id"].orEmpty()
+        if (open.selfClosing) {
+            if (id.isNotBlank()) onChannel(id, emptyList())
+            return
+        }
+        val names = ArrayList<String>(2)
+        while (true) {
+            val inner = nextTag(reader) ?: break
+            if (inner.closing && inner.name == "channel") break
+            if (inner.closing) continue
+            if (inner.name == "display-name" && !inner.selfClosing) {
+                val text = decodeXmlEntities(readElementText(reader, inner.name)).trim()
+                if (text.isNotBlank()) names += text
+            } else {
+                skipElement(reader, inner)
+            }
+        }
+        if (id.isNotBlank()) onChannel(id, names)
     }
 
     private data class Tag(
@@ -276,30 +303,53 @@ class XmltvParser {
 fun parseXmltvTime(raw: String?): Long? {
     if (raw.isNullOrBlank()) return null
     val s = raw.trim()
-    if (s.length < 14 || !s[0].isDigit()) return null
+    if (s.isEmpty() || !s[0].isDigit()) return null
     return try {
-        val year = s.substring(0, 4).toInt()
-        val month = s.substring(4, 6).toInt()
-        val day = s.substring(6, 8).toInt()
-        val hour = s.substring(8, 10).toInt()
-        val minute = s.substring(10, 12).toInt()
-        val second = s.substring(12, 14).toInt()
+        val (core, rest) = splitXmltvStamp(s) ?: return null
+        val year = core.substring(0, 4).toInt()
+        val month = core.substring(4, 6).toInt()
+        val day = core.substring(6, 8).toInt()
+        val hour = core.substring(8, 10).toInt()
+        val minute = core.substring(10, 12).toInt()
+        val second = core.substring(12, 14).toInt()
         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
         cal.clear()
         cal.set(year, month - 1, day, hour, minute, second)
         var utc = cal.timeInMillis
-        val rest = s.substring(14).trim()
         if (rest.isNotEmpty() && (rest[0] == '+' || rest[0] == '-')) {
             val sign = if (rest[0] == '-') -1 else 1
             val digits = rest.substring(1).filter { it.isDigit() }
             val oh = digits.take(2).toIntOrNull() ?: 0
             val om = digits.drop(2).take(2).toIntOrNull() ?: 0
             utc -= sign * (oh * 60L + om) * 60_000L
+        } else if (rest.equals("Z", ignoreCase = true)) {
+            // already UTC
         }
         utc
     } catch (_: RuntimeException) {
         null
     }
+}
+
+private fun splitXmltvStamp(s: String): Pair<String, String>? {
+    if (s.length >= 5 && (s[4] == '-' || s[4] == '.')) {
+        val digits = StringBuilder(14)
+        var i = 0
+        while (i < s.length && digits.length < 14) {
+            val c = s[i]
+            if (c.isDigit()) digits.append(c)
+            else if (c != '-' && c != '.' && c != ':' && c != ' ' && c != 'T' && c != 't') break
+            i++
+        }
+        if (digits.length < 12) return null
+        val core = digits.toString().padEnd(14, '0').take(14)
+        return core to s.substring(i).trim()
+    }
+    if (s.length < 12 || !s[0].isDigit()) return null
+    val hasSeconds = s.length >= 14 && s[12].isDigit() && s[13].isDigit()
+    val core = if (hasSeconds) s.substring(0, 14) else s.substring(0, 12) + "00"
+    if (core.any { !it.isDigit() }) return null
+    return core to s.substring(if (hasSeconds) 14 else 12).trim()
 }
 
 fun decodeXmlEntities(input: String): String {

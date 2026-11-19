@@ -33,6 +33,7 @@ data class AppSettings(
     val updateManifestUrl: String = "",
     val lastPlaylistId: Long = -1,
     val lastChannelId: Long = -1,
+    val epgMatcher: Int = 0,
 ) {
     fun effectiveUserAgent(playlistUa: String?): String =
         playlistUa?.takeIf { it.isNotBlank() }
@@ -62,6 +63,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.updateUrl] = next.updateManifestUrl
             prefs[Keys.lastPlaylist] = next.lastPlaylistId
             prefs[Keys.lastChannel] = next.lastChannelId
+            prefs[Keys.epgMatcher] = next.epgMatcher
         }
     }
 
@@ -82,6 +84,7 @@ class SettingsStore(private val context: Context) {
         updateManifestUrl = this[Keys.updateUrl] ?: "",
         lastPlaylistId = this[Keys.lastPlaylist] ?: -1L,
         lastChannelId = this[Keys.lastChannel] ?: -1L,
+        epgMatcher = this[Keys.epgMatcher] ?: 0,
     )
 
     private object Keys {
@@ -101,6 +104,7 @@ class SettingsStore(private val context: Context) {
         val updateUrl = stringPreferencesKey("update_manifest")
         val lastPlaylist = longPreferencesKey("last_playlist")
         val lastChannel = longPreferencesKey("last_channel")
+        val epgMatcher = intPreferencesKey("epg_matcher")
     }
 }
 

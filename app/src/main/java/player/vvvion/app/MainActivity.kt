@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.os.LocaleListCompat
@@ -83,8 +84,14 @@ class MainActivity : AppCompatActivity() {
             val settings by appVm.settings.collectAsStateWithLifecycle()
             val fullscreen by playerVm.fullscreen.collectAsStateWithLifecycle()
             VvvionTheme(amoled = settings.amoled) {
+                val context = LocalContext.current
                 val dp = LocalConfiguration.current.screenWidthDp
+                val uiMode = LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK
+                val television = uiMode == Configuration.UI_MODE_TYPE_TELEVISION ||
+                    context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+                    !context.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
                 val width = when {
+                    television -> WindowWidthSizeClass.Expanded
                     dp < 600 -> WindowWidthSizeClass.Compact
                     dp < 840 -> WindowWidthSizeClass.Medium
                     else -> WindowWidthSizeClass.Expanded
@@ -94,6 +101,7 @@ class MainActivity : AppCompatActivity() {
                         vm = appVm,
                         playerVm = playerVm,
                         width = width,
+                        television = television,
                         onPickFile = { filePicker.launch(arrayOf("*/*")) },
                         onPaste = { pasteClipboard() },
                     )

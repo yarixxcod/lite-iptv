@@ -57,6 +57,13 @@ interface PlaylistDao {
     )
     fun updatePlaylistStatus(id: Long, etag: String?, lastModified: String?, syncedAt: Long?, error: String?, epgUrl: String?)
 
+    @Query(
+        """
+        UPDATE playlists SET epgEtag = NULL, epgLastModified = NULL WHERE id = :id
+        """,
+    )
+    fun clearEpgValidators(id: Long)
+
     @Query("DELETE FROM playlists WHERE id = :id")
     fun delete(id: Long)
 }
@@ -178,6 +185,16 @@ interface ChannelDao {
         """,
     )
     suspend fun head(playlistId: Long, group: String, limit: Int): List<ChannelEntity>
+
+    @Query(
+        """
+        SELECT id, tvgId, tvgName, name, epgKey FROM channels WHERE playlistId = :playlistId
+        """,
+    )
+    fun epgRefs(playlistId: Long): List<ChannelEpgRef>
+
+    @Query("UPDATE channels SET epgKey = :epgKey WHERE id = :id")
+    fun setEpgKey(id: Long, epgKey: String)
 }
 
 @Dao
@@ -243,9 +260,9 @@ interface ProgramDao {
     @Query(
         """
         SELECT * FROM programs
-        WHERE playlistId = :playlistId AND channelKey = :key AND stopUtc > :now
+        WHERE playlistId = :playlistId AND channelKey IN (:keys) AND stopUtc > :now
         ORDER BY startUtc ASC LIMIT :limit
         """,
     )
-    fun upcoming(playlistId: Long, key: String, now: Long, limit: Int = 12): Flow<List<ProgramEntity>>
+    fun upcomingAny(playlistId: Long, keys: List<String>, now: Long, limit: Int = 12): Flow<List<ProgramEntity>>
 }

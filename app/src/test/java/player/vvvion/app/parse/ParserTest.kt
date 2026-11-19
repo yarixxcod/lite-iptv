@@ -4,6 +4,7 @@ import player.vvvion.app.data.parse.M3uParser
 import player.vvvion.app.data.parse.XmltvParser
 import player.vvvion.app.data.parse.parseXmltvTime
 import player.vvvion.app.domain.ChannelDeduper
+import player.vvvion.app.domain.EpgMatch
 import player.vvvion.app.domain.FavoritesLogic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -166,5 +167,42 @@ class ParserTest {
         assertEquals(listOf("b", "c", "d", "a"), FavoritesLogic.move(order, 0, 3))
         assertEquals(order, FavoritesLogic.move(order, 1, 1))
         assertEquals(order, FavoritesLogic.move(order, 9, 0))
+    }
+
+    @Test
+    fun xmltvDisplayNamesAndIsoTimes() {
+        val xml = """
+            <tv>
+              <channel id="News.HD">
+                <display-name>News HD</display-name>
+                <display-name lang="ru">Новости</display-name>
+              </channel>
+              <programme start="2026-11-19T12:00:00Z" stop="2026-11-19T13:00:00Z" channel="News.HD">
+                <title>Bulletin</title>
+              </programme>
+            </tv>
+        """.trimIndent()
+        val names = HashMap<String, List<String>>()
+        val programs = ArrayList<player.vvvion.app.data.parse.ParsedProgram>()
+        XmltvParser().parse(
+            ByteArrayInputStream(xml.toByteArray()),
+            windowStart = 0,
+            windowEnd = Long.MAX_VALUE,
+            onChannel = { id, found -> names[id] = found },
+        ) { programs += it }
+        assertEquals(listOf("News HD", "Новости"), names["News.HD"])
+        assertEquals("Bulletin", programs.single().title)
+        assertEquals(parseXmltvTime("20261119120000 +0000"), programs.single().startUtc)
+    }
+
+    @Test
+    fun epgMatchesDisplayNameCaseAndHdSuffix() {
+        val aliases = HashMap<String, String>()
+        EpgMatch.addAliases(aliases, "News.HD", listOf("News HD", "Новости"))
+        assertEquals("newshd", EpgMatch.bind("news.hd", null, "Other", aliases))
+        assertEquals("newshd", EpgMatch.bind(null, "Новости", "Other", aliases))
+        assertEquals("newshd", EpgMatch.bind(null, null, "News", aliases))
+        assertEquals("news", ChannelDeduper.epgKey(" News ", "Ignored"))
+        assertTrue(EpgMatch.candidates(null, null, "News HD", "name:news hd").contains("name:news hd"))
     }
 }

@@ -4,6 +4,7 @@ package player.vvvion.app.ui
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -73,6 +75,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -106,6 +109,7 @@ fun HomeScreen(
     width: WindowWidthSizeClass,
     onPickFile: () -> Unit,
     onPaste: () -> Unit,
+    television: Boolean = false,
 ) {
     val tab by vm.tab.collectAsStateWithLifecycle()
     val playlists by vm.playlists.collectAsStateWithLifecycle()
@@ -127,11 +131,12 @@ fun HomeScreen(
     val qrUrl by vm.qrUrl.collectAsStateWithLifecycle()
     val guide by vm.guide.collectAsStateWithLifecycle()
     val preview by playerVm.channel.collectAsStateWithLifecycle()
+    val playingFull by playerVm.fullscreen.collectAsStateWithLifecycle()
     val offer by vm.availableUpdate.collectAsStateWithLifecycle()
     val updatePhase by vm.updatePhase.collectAsStateWithLifecycle()
     val updateFraction by vm.updateFraction.collectAsStateWithLifecycle()
-    val expanded = width == WindowWidthSizeClass.Expanded
-    val medium = width != WindowWidthSizeClass.Compact
+    val expanded = television || width == WindowWidthSizeClass.Expanded
+    val medium = television || width != WindowWidthSizeClass.Compact
     var compactList by remember { mutableStateOf(false) }
 
     BackHandler(enabled = !medium && compactList && !editor) { compactList = false }
@@ -154,7 +159,7 @@ fun HomeScreen(
         return
     }
 
-    val compact = width == WindowWidthSizeClass.Compact
+    val compact = !television && width == WindowWidthSizeClass.Compact
     val playlistName = playlists.firstOrNull { it.id == playlistId }?.name
     val navItems = listOf(
         Triple(HomeTab.LIVE, stringResource(R.string.tab_live), Icons.Filled.Home),
@@ -217,7 +222,7 @@ fun HomeScreen(
             }
         },
     ) { inner ->
-        Column(Modifier.padding(inner).fillMaxSize()) {
+        Column(Modifier.padding(inner).padding(if (television) 18.dp else 0.dp).fillMaxSize()) {
             offer?.let {
                 UpdateBanner(it, updatePhase, updateFraction, vm::downloadUpdate, vm::dismissUpdate)
             }
@@ -264,7 +269,8 @@ fun HomeScreen(
                                         if (!medium) compactList = true
                                     },
                                     onLock = vm::toggleLock,
-                                    modifier = if (medium) Modifier.width(280.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
+                                    television = television,
+                                    modifier = if (medium) Modifier.width(if (television) 220.dp else 280.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
                                 )
                             }
                         }
@@ -277,7 +283,9 @@ fun HomeScreen(
                                 recent = recent,
                                 favorites = tab == HomeTab.FAVORITES,
                                 typed = typed,
+                                television = television,
                                 modifier = when {
+                                    television -> Modifier.width(340.dp).fillMaxHeight()
                                     expanded -> Modifier.width(420.dp).fillMaxHeight()
                                     medium -> Modifier.width(360.dp).fillMaxHeight()
                                     else -> Modifier.weight(1f).fillMaxHeight()
@@ -287,7 +295,7 @@ fun HomeScreen(
                                 } else {
                                     null
                                 },
-                                onOpen = { vm.selectChannel(it, !expanded) },
+                                onOpen = { vm.selectChannel(it, television || !expanded) },
                                 onPreview = { vm.selectChannel(it, false) },
                             )
                         }
@@ -297,6 +305,7 @@ fun HomeScreen(
                                     vm = playerVm,
                                     modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)),
                                     controls = false,
+                                    attachVideo = !playingFull,
                                     onOpen = { preview?.let { vm.selectChannel(it, true) } },
                                 )
                                 Spacer(Modifier.height(12.dp))
@@ -408,12 +417,13 @@ private fun GroupColumn(
     playlistId: Long,
     onSelect: (String) -> Unit,
     onLock: (String) -> Unit,
+    television: Boolean,
     modifier: Modifier,
 ) {
     val rows = groups.distinctBy { it.title }
     LazyColumn(modifier.background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(8.dp)) {
         item {
-            GroupCard(stringResource(R.string.all_groups), selected.isEmpty(), false, { onSelect("") }, null)
+            GroupCard(stringResource(R.string.all_groups), selected.isEmpty(), false, television, { onSelect("") }, null)
         }
         items(rows, key = { it.title }) { row ->
             val isLocked = lockKey(playlistId, row.title) in locked
@@ -421,6 +431,7 @@ private fun GroupColumn(
                 title = "${row.title}  ${row.count}",
                 selected = selected == row.title,
                 locked = isLocked,
+                television = television,
                 onClick = { onSelect(row.title) },
                 onLock = { onLock(row.title) },
             )
@@ -429,11 +440,29 @@ private fun GroupColumn(
 }
 
 @Composable
-private fun GroupCard(title: String, selected: Boolean, locked: Boolean, onClick: () -> Unit, onLock: (() -> Unit)?) {
+private fun Modifier.tvFocus(enabled: Boolean, onFocused: () -> Unit = {}): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    if (!enabled) return this
+    return this
+        .onFocusChanged {
+            val now = it.isFocused
+            if (now && !focused) onFocused()
+            focused = now
+        }
+        .border(
+            width = if (focused) 3.dp else 0.dp,
+            color = if (focused) Color.White else Color.Transparent,
+            shape = RoundedCornerShape(16.dp),
+        )
+}
+
+@Composable
+private fun GroupCard(title: String, selected: Boolean, locked: Boolean, television: Boolean, onClick: () -> Unit, onLock: (() -> Unit)?) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = if (television) 6.dp else 4.dp)
+            .tvFocus(television)
             .combinedClickable(onClick = onClick, onLongClick = onLock),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -462,6 +491,7 @@ private fun ChannelColumn(
     recent: List<player.vvvion.app.data.db.HistoryEntity>,
     favorites: Boolean,
     typed: String,
+    television: Boolean,
     modifier: Modifier,
     onBack: (() -> Unit)? = null,
     onOpen: (ChannelEntity) -> Unit,
@@ -516,10 +546,13 @@ private fun ChannelColumn(
                 val programs = epgNow[channel.epgKey].orEmpty()
                 val now = programs.firstOrNull { it.startUtc <= System.currentTimeMillis() && it.stopUtc > System.currentTimeMillis() }
                 ListItem(
-                    modifier = Modifier.combinedClickable(
-                        onClick = { onPreview(channel); onOpen(channel) },
-                        onLongClick = { vm.toggleFavorite(channel) },
-                    ),
+                    modifier = Modifier
+                        .heightIn(min = if (television) 76.dp else 0.dp)
+                        .tvFocus(television) { onPreview(channel) }
+                        .combinedClickable(
+                            onClick = { onPreview(channel); onOpen(channel) },
+                            onLongClick = { vm.toggleFavorite(channel) },
+                        ),
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                     leadingContent = { ChannelLogo(channel.logo) },
                     headlineContent = {

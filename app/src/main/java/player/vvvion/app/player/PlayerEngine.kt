@@ -8,6 +8,8 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
+import android.os.Looper
+import android.view.TextureView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -43,6 +45,8 @@ data class EngineState(
     val audio: List<TrackChoice> = emptyList(),
     val subtitles: List<TrackChoice> = emptyList(),
     val subtitlesOff: Boolean = true,
+    val videoWidth: Int = 0,
+    val videoHeight: Int = 0,
 )
 
 class RetryPolicy : DefaultLoadErrorHandlingPolicy(8) {
@@ -68,13 +72,38 @@ class PlayerEngine(
     private var urls: List<String> = emptyList()
     private var urlIndex = 0
     private var networkHooked = false
+    private var texture: TextureView? = null
     private val bandwidthMeter by lazy {
         DefaultBandwidthMeter.Builder(appContext)
             .setInitialBitrateEstimate(350_000L)
             .build()
     }
 
+    init {
+        installPlaybackGuard()
+    }
+
     fun player(): ExoPlayer? = player
+
+    fun attachTexture(view: TextureView) {
+        try {
+            texture = view
+            player?.setVideoTextureView(view)
+        } catch (t: Throwable) {
+            reportPlayback(t)
+        }
+    }
+
+    fun detachTexture(view: TextureView) {
+        try {
+            if (texture === view) {
+                player?.clearVideoTextureView(view)
+                texture = null
+            }
+        } catch (t: Throwable) {
+            reportPlayback(t)
+        }
+    }
 
     fun play(
         urls: List<String>,
@@ -197,13 +226,24 @@ class PlayerEngine(
         val selector = DefaultTrackSelector(appContext)
         val factory = DefaultMediaSourceFactory(dataSource).setLoadErrorHandlingPolicy(RetryPolicy())
         player = ExoPlayer.Builder(appContext)
-            .setRenderersFactory(DefaultRenderersFactory(appContext).setEnableDecoderFallback(true))
+            .setRenderersFactory(
+                DefaultRenderersFactory(appContext)
+                    .setEnableDecoderFallback(true)
+                    .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF),
+            )
             .setTrackSelector(selector)
             .setLoadControl(loadControl)
             .setBandwidthMeter(bandwidthMeter)
             .setMediaSourceFactory(factory)
             .build()
             .also { exo ->
+                texture?.let { view ->
+                    try {
+                        exo.setVideoTextureView(view)
+                    } catch (t: Throwable) {
+                        reportPlayback(t)
+                    }
+                }
                 exo.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         _state.value = _state.value.copy(
@@ -232,6 +272,12 @@ class PlayerEngine(
 
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                         publishTracks(exo)
+                    }
+
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0) {
+                            _state.value = _state.value.copy(videoWidth = videoSize.width, videoHeight = videoSize.height)
+                        }
                     }
                 })
             }
@@ -327,6 +373,29 @@ class PlayerEngine(
         }
     }
 
+    private fun reportPlayback(t: Throwable) {
+        _state.value = _state.value.copy(
+            error = (t.message ?: t.javaClass.simpleName).take(180),
+            rebuffering = false,
+            playing = false,
+        )
+    }
+
+    private fun installPlaybackGuard() {
+        if (guardInstalled) return
+        guardInstalled = true
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            val media = thread.name.contains("ExoPlayer", ignoreCase = true) ||
+                throwable.stackTrace.any { it.className.startsWith("androidx.media3.") }
+            if (media && thread != Looper.getMainLooper().thread) {
+                reportPlayback(throwable)
+            } else {
+                previous?.uncaughtException(thread, throwable)
+            }
+        }
+    }
+
     private fun mimeFor(url: String): String? {
         val lower = url.lowercase().substringBefore('?')
         return when {
@@ -335,5 +404,9 @@ class PlayerEngine(
             lower.startsWith("rtsp://") -> MimeTypes.APPLICATION_RTSP
             else -> null
         }
+    }
+
+    private companion object {
+        private var guardInstalled = false
     }
 }

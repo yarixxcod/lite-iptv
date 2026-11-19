@@ -3,7 +3,8 @@
 package player.vvvion.app.ui
 
 import android.view.KeyEvent
-import android.view.LayoutInflater
+import android.view.TextureView
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,13 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import player.vvvion.app.R
 import player.vvvion.app.domain.AspectMode
 import player.vvvion.app.player.TrackChoice
@@ -53,6 +53,7 @@ fun PlayerPane(
     vm: PlayerViewModel,
     modifier: Modifier = Modifier,
     controls: Boolean,
+    attachVideo: Boolean = true,
     onOpen: () -> Unit = {},
     onZap: (Int) -> Unit = {},
 ) {
@@ -81,8 +82,17 @@ fun PlayerPane(
     val frameMod = when (state.aspect) {
         AspectMode.R16 -> Modifier.fillMaxHeight().aspectRatio(16f / 9f)
         AspectMode.R4 -> Modifier.fillMaxHeight().aspectRatio(4f / 3f)
-        else -> Modifier.fillMaxSize()
+        AspectMode.FILL, AspectMode.ZOOM -> Modifier.fillMaxSize()
+        else -> {
+            val ratio = if (state.videoWidth > 0 && state.videoHeight > 0) {
+                state.videoWidth.toFloat() / state.videoHeight
+            } else {
+                16f / 9f
+            }
+            Modifier.fillMaxHeight().aspectRatio(ratio, matchHeightConstraintsFirst = true)
+        }
     }
+    if (controls) BackHandler { vm.close() }
     Box(
         modifier
             .background(MaterialTheme.colorScheme.background)
@@ -121,22 +131,22 @@ fun PlayerPane(
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             AndroidView(
-                modifier = frameMod,
-                factory = { context ->
-                    val view = LayoutInflater.from(context).inflate(R.layout.vvvion_player, null) as PlayerView
-                    view.useController = false
-                    view.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                    view
-                },
-                update = { view ->
-                    view.player = vm.player()
-                    view.resizeMode = when (state.aspect) {
-                        AspectMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        AspectMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                modifier = frameMod.graphicsLayer {
+                    if (state.aspect == AspectMode.ZOOM) {
+                        scaleX = 1.28f
+                        scaleY = 1.28f
                     }
                 },
-                onRelease = { view -> view.player = null },
+                factory = { context ->
+                    TextureView(context).apply {
+                        isOpaque = true
+                        keepScreenOn = true
+                    }
+                },
+                update = { view ->
+                    if (attachVideo) vm.attachTexture(view) else vm.detachTexture(view)
+                },
+                onRelease = { view -> vm.detachTexture(view) },
             )
         }
         if (state.weak) {

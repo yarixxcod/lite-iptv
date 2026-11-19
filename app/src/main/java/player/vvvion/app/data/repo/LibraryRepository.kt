@@ -62,6 +62,8 @@ class LibraryRepository(
 
     fun observePlaylists(): Flow<List<PlaylistEntity>> = db.playlists().observe()
 
+    suspend fun playlistsSnapshot(): List<PlaylistEntity> = db.playlists().all()
+
     fun groups(playlistId: Long) = db.channels().groups(playlistId)
 
     fun recent() = db.history().recent()
@@ -317,7 +319,9 @@ class LibraryRepository(
         db.runInTransaction {
             db.channels().deleteByPlaylist(playlist.id)
             parser.parse(reader, onHeader = { header ->
-                if (headerEpg == null) headerEpg = header.epgUrls.firstOrNull()
+                if (headerEpg == null && header.epgUrls.isNotEmpty()) {
+                    headerEpg = header.epgUrls.joinToString("\n")
+                }
             }) { items ->
                 for (parsed in items) {
                     when (val decision = deduper.accept(parsed, auto)) {

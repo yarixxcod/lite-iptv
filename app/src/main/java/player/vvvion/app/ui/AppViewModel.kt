@@ -107,7 +107,7 @@ class AppViewModel(
 
     val guide = playback.channel.flatMapLatest { channel ->
         if (channel == null) flowOf(emptyList())
-        else epgRepo.upcoming(channel.playlistId, channel.epgKey)
+        else epgRepo.upcoming(channel)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
@@ -185,7 +185,7 @@ class AppViewModel(
         if (id < 0 || channels.isEmpty()) return
         viewModelScope.launch {
             try {
-                epgNow.value = epgRepo.nowAndNext(id, channels.map { it.epgKey })
+                epgNow.value = epgRepo.nowAndNext(id, channels)
             } catch (_: Throwable) {
             }
         }
@@ -236,6 +236,7 @@ class AppViewModel(
                 if (draft.type != LibraryRepository.TYPE_PASTE || !draft.pastedText.isNullOrBlank() || draft.id == 0L) {
                     library.syncPlaylist(id)
                     epgRepo.sync(id)
+                    reloadPlaying(id)
                 }
             } catch (t: Throwable) {
                 message.value = t.message ?: t.javaClass.simpleName
@@ -277,7 +278,8 @@ class AppViewModel(
             message.value = null
             try {
                 library.syncPlaylist(id)
-                epgRepo.sync(id)
+                epgRepo.sync(id, force = true)
+                reloadPlaying(id)
             } catch (t: Throwable) {
                 message.value = t.message ?: t.javaClass.simpleName
             } finally {
@@ -319,11 +321,29 @@ class AppViewModel(
         if (resumed) return
         resumed = true
         viewModelScope.launch {
-            val current = settings.value
-            if (!current.resumeLast || current.lastChannelId <= 0) return@launch
-            val channel = library.channel(current.lastChannelId) ?: return@launch
-            playback.openFull(channel)
+            val current = settingsStore.settings.first()
+            if (current.resumeLast && current.lastChannelId > 0) {
+                library.channel(current.lastChannelId)?.let { playback.openFull(it) }
+            }
+            if (current.epgMatcher < 2) {
+                val pending = library.playlistsSnapshot()
+                for (playlist in pending) {
+                    if (playlist.epgUrl.isNullOrBlank()) continue
+                    try {
+                        epgRepo.sync(playlist.id, force = true)
+                    } catch (_: Throwable) {
+                    }
+                }
+                settingsStore.update { it.copy(epgMatcher = 2) }
+                reloadPlaying(selectedPlaylistId.value)
+            }
         }
+    }
+
+    private suspend fun reloadPlaying(playlistId: Long) {
+        val current = playback.channel.value ?: return
+        if (playlistId >= 0 && current.playlistId != playlistId) return
+        library.channel(current.id)?.let { playback.select(it) }
     }
 
     suspend fun loadGuideRows(): List<GuideRow> {
@@ -332,7 +352,7 @@ class AppViewModel(
         val selected = group.value.ifBlank { groups.value.firstOrNull()?.title ?: "" }
         val channels = library.head(id, selected, 8)
         if (channels.isEmpty()) return emptyList()
-        val programs = epgRepo.nowAndNext(id, channels.map { it.epgKey })
+        val programs = epgRepo.nowAndNext(id, channels)
         return channels.map { channel -> GuideRow(channel, programs[channel.epgKey].orEmpty()) }
     }
 

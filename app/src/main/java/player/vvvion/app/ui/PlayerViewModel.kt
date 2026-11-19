@@ -36,7 +36,7 @@ class PlayerViewModel(
     val sleepLabel = MutableStateFlow<String?>(null)
     val typedNumber = MutableStateFlow("")
     val programs = playback.channel.flatMapLatest { current ->
-        if (current == null) flowOf(emptyList()) else epgRepo.upcoming(current.playlistId, current.epgKey)
+        if (current == null) flowOf(emptyList()) else epgRepo.upcoming(current)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var lastKey = ""
@@ -112,6 +112,10 @@ class PlayerViewModel(
     }
 
     fun player() = engine.player()
+
+    fun attachTexture(view: android.view.TextureView) = engine.attachTexture(view)
+
+    fun detachTexture(view: android.view.TextureView) = engine.detachTexture(view)
 
     fun retry() = engine.retry()
 

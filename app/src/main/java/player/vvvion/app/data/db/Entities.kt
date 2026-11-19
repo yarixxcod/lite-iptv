@@ -96,3 +96,11 @@ data class GroupRow(
     val title: String,
     val count: Int,
 )
+
+data class ChannelEpgRef(
+    val id: Long,
+    val tvgId: String?,
+    val tvgName: String?,
+    val name: String,
+    val epgKey: String,
+)

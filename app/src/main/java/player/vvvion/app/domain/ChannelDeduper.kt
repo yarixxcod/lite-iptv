@@ -47,9 +47,9 @@ class ChannelDeduper {
         }
 
         fun epgKey(tvgId: String?, name: String): String {
-            val id = tvgId?.trim().orEmpty()
+            val id = EpgMatch.norm(tvgId)
             if (id.isNotEmpty()) return id
-            return "name:" + name.trim().lowercase()
+            return EpgMatch.norm(name)
         }
     }
 }

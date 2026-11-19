@@ -65,6 +65,11 @@
 # PlayerView is inflated by class name and reads these fields via getstatic.
 # R8 was renaming PlayerView and stripping the API 34 surface helper, which
 # crashes the process the moment a channel starts on Android 14+.
+# Player classes are loaded by name. Keep the whole Media3 stack so a
+# stripped extractor or renderer cannot kill the process when a channel starts.
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
 -keep class androidx.media3.ui.PlayerView { *; }
 -keep class androidx.media3.ui.PlayerView$* { *; }
 -keep class androidx.media3.ui.AspectRatioFrameLayout { *; }
