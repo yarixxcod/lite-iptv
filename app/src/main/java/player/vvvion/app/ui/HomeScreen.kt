@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -279,9 +281,11 @@ fun HomeScreen(
                         vm = vm,
                         programs = guide,
                         modifier = Modifier.weight(1f),
-                        onOpen = { playerVm.channel.value?.let { vm.selectChannel(it, true) } },
                     )
-                    else -> {
+                    else -> BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+                        val showPreview = expanded && maxWidth >= 820.dp
+                        val groupWidth = if (television) 196.dp else 280.dp
+                        Row(Modifier.fillMaxSize()) {
                         if (medium || !compactList) {
                             if (tab == HomeTab.LIVE) {
                                 GroupColumn(
@@ -296,7 +300,7 @@ fun HomeScreen(
                                     onLock = vm::toggleLock,
                                     onRemove = vm::requestHideGroup,
                                     television = television,
-                                    modifier = if (medium) Modifier.width(if (television) 220.dp else 280.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
+                                    modifier = if (medium) Modifier.width(groupWidth).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
                                 )
                             }
                         }
@@ -313,9 +317,8 @@ fun HomeScreen(
                                 typed = typed,
                                 television = television,
                                 modifier = when {
-                                    television -> Modifier.width(340.dp).fillMaxHeight()
-                                    expanded -> Modifier.width(420.dp).fillMaxHeight()
-                                    medium -> Modifier.width(360.dp).fillMaxHeight()
+                                    showPreview -> Modifier.weight(1.15f).widthIn(max = 420.dp).fillMaxHeight()
+                                    medium || television -> Modifier.weight(1f).fillMaxHeight()
                                     else -> Modifier.weight(1f).fillMaxHeight()
                                 },
                                 onBack = if (!medium && tab == HomeTab.LIVE) {
@@ -327,7 +330,7 @@ fun HomeScreen(
                                 onPreview = { vm.selectChannel(it, false) },
                             )
                         }
-                        if (expanded) {
+                        if (showPreview) {
                             Column(Modifier.weight(1f).fillMaxHeight().padding(12.dp)) {
                                 PlayerPane(
                                     vm = playerVm,
@@ -365,6 +368,7 @@ fun HomeScreen(
                                 }
                                 now?.description?.let { Text(it, maxLines = 3, color = Muted, modifier = Modifier.padding(top = 6.dp)) }
                             }
+                        }
                         }
                     }
                 }
@@ -657,6 +661,7 @@ private fun ChannelColumn(
                 }
                 ListItem(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .heightIn(min = if (television) 76.dp else 0.dp)
                         .focusRequester(itemFocus)
                         .tvFocus(television) {
@@ -668,7 +673,7 @@ private fun ChannelColumn(
                             onLongClick = { vm.toggleFavorite(channel) },
                         ),
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    leadingContent = { ChannelLogo(channel.logo) },
+                    leadingContent = { ChannelLogo(channel.logo, channel.name) },
                     headlineContent = {
                         Text("${channel.number}   ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
@@ -746,74 +751,24 @@ private fun ChannelProgramLine(programs: List<player.vvvion.app.data.db.ProgramE
 }
 
 @Composable
-private fun ChannelLogo(url: String?) {
-    if (url.isNullOrBlank()) {
-        Box(Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(InkLine))
-    } else {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current).data(url).size(64).bitmapConfig(Bitmap.Config.RGB_565).crossfade(false).build(),
-            contentDescription = null,
-            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(InkLine),
-            contentScale = ContentScale.Fit,
-        )
-    }
-}
-
-@Composable
-private fun GuideScreen(
-    vm: AppViewModel,
-    programs: List<player.vvvion.app.data.db.ProgramEntity>,
-    modifier: Modifier,
-    onOpen: () -> Unit,
-) {
-    var rows by remember { mutableStateOf<List<GuideRow>>(emptyList()) }
-    val playlistId by vm.selectedPlaylistId.collectAsStateWithLifecycle()
-    val group by vm.group.collectAsStateWithLifecycle()
-    LaunchedEffect(playlistId, group) { rows = vm.loadGuideRows() }
-    LazyColumn(modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            Text(stringResource(R.string.tab_guide), style = MaterialTheme.typography.headlineMedium)
-            TextButton(onClick = onOpen) { Text(stringResource(R.string.play)) }
-        }
-        if (rows.isEmpty() && programs.isEmpty()) {
-            item { Text(stringResource(R.string.epg_empty), color = Muted) }
-        }
-        items(rows, key = { it.channel.id }, contentType = { "guide" }) { row ->
-            Column {
-                Text(row.channel.name, style = MaterialTheme.typography.titleMedium)
-                ProgramStrip(row.programs)
-            }
-        }
-        item {
-            Text(stringResource(R.string.program_details), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
-        }
-        items(programs, key = { it.id }, contentType = { "program" }) { program ->
-            Column(Modifier.padding(vertical = 6.dp)) {
-                Text(clock(program.startUtc) + " – " + clock(program.stopUtc) + "   " + program.title, style = MaterialTheme.typography.titleMedium)
-                program.description?.let { Text(it, color = Muted, maxLines = 4) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProgramStrip(programs: List<player.vvvion.app.data.db.ProgramEntity>) {
-    val start = System.currentTimeMillis() - 20 * 60_000L
-    val window = 3 * 60 * 60_000f
-    Box(Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(8.dp)).background(InkRaised)) {
-        programs.forEach { program ->
-            val left = ((program.startUtc - start) / window).coerceIn(0f, 1f)
-            val right = ((program.stopUtc - start) / window).coerceIn(0f, 1f)
-            if (right <= left) return@forEach
-            Box(
-                Modifier.fillMaxWidth(right - left).padding(start = 0.dp)
-                    .align(Alignment.CenterStart)
-                    .padding(start = androidx.compose.ui.unit.lerp(0.dp, 1000.dp, left))
-            ) {}
-            Text(
-                program.title,
-                maxLines = 1,
-                modifier = Modifier.padding(start = androidx.compose.ui.unit.lerp(4.dp, 800.dp, left), top = 8.dp),
+internal fun ChannelLogo(url: String?, name: String? = null) {
+    val shape = RoundedCornerShape(10.dp)
+    val tile = MaterialTheme.colorScheme.surfaceContainerHighest
+    Box(Modifier.size(52.dp).clip(shape).background(tile), contentAlignment = Alignment.Center) {
+        val initials = name.orEmpty().filter { it.isLetterOrDigit() }.take(2).uppercase().ifBlank { "TV" }
+        Text(initials, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+        if (!url.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(url)
+                    .size(128)
+                    .bitmapConfig(Bitmap.Config.ARGB_8888)
+                    .allowHardware(false)
+                    .crossfade(false)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier.size(52.dp).clip(shape),
+                contentScale = ContentScale.Fit,
             )
         }
     }
