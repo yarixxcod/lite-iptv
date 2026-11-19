@@ -330,6 +330,12 @@ fun HomeScreen(
             CircularProgressIndicator(color = Accent)
         }
     }
+    LaunchedEffect(message) {
+        if (message != null) {
+            kotlinx.coroutines.delay(4500)
+            vm.message.value = null
+        }
+    }
     message?.let { code ->
         val text = when (code) {
             "pin" -> stringResource(R.string.pin_wrong)
