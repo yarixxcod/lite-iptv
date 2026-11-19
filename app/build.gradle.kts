@@ -9,7 +9,7 @@ plugins {
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 android {
-    namespace = "app.liteiptv"
+    namespace = "player.vvvion.app"
     compileSdk {
         version = release(37) {
             minorApiLevel = 2
@@ -17,11 +17,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.liteiptv"
+        applicationId = "player.vvvion.app"
         minSdk = 23
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -63,7 +63,7 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = false
+        buildConfig = true
     }
 
     packaging {
@@ -93,7 +93,7 @@ android {
     }
 }
 
-base.archivesName.set("LiteIPTV")
+base.archivesName.set("VvvionIPTV")
 
 kotlin {
     compilerOptions {

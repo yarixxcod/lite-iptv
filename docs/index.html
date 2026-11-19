@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VVVION IPTV — панель обновлений</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #000; color: #fff; font-family: "Segoe UI", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+    img.logo { width: min(280px, 70vw); display: block; margin: 0 auto 28px; }
+    h1 { font-weight: 600; letter-spacing: .28em; font-size: 22px; text-align: center; margin: 0; }
+    .sub { text-align: center; letter-spacing: .42em; color: #9a9a9a; margin: 8px 0 28px; font-size: 13px; }
+    section { border: 1px solid #2a2a2a; border-radius: 16px; padding: 18px; margin: 14px 0; background: #0c0c0c; }
+    label { display: block; margin: 12px 0 6px; color: #9a9a9a; font-size: 13px; letter-spacing: .04em; }
+    input, textarea { width: 100%; background: #000; color: #fff; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 14px; font-size: 16px; }
+    textarea { min-height: 88px; resize: vertical; }
+    button { background: #fff; color: #000; border: 0; border-radius: 12px; padding: 12px 16px; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+    button.ghost { background: transparent; color: #fff; border: 1px solid #3a3a3a; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .row button { flex: 1; }
+    .hint { color: #9a9a9a; font-size: 14px; line-height: 1.45; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; min-height: 1.2em; }
+    a { color: #fff; }
+    ul { padding-left: 18px; }
+    li { margin: 6px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <img class="logo" src="logo.png" alt="VVVION IPTV">
+  <h1>VVVION</h1>
+  <p class="sub">IPTV · ОБНОВЛЕНИЯ</p>
+  <p class="hint">Загрузите APK в релиз GitHub. Приложение само скачает <code>latest.json</code> и установит пакет, если <code>versionCode</code> больше установленного.</p>
+
+  <section>
+    <label for="token">Токен GitHub (contents: write)</label>
+    <input id="token" type="password" autocomplete="off" placeholder="github_pat_…">
+    <p class="hint">Токен хранится только в этом браузере. Нужен доступ на запись содержимого репозитория. Не используйте общий компьютер.</p>
+    <label for="repo">Репозиторий</label>
+    <input id="repo" value="yarixxcod/lite-iptv">
+    <div class="row">
+      <button class="ghost" id="save" type="button">Запомнить здесь</button>
+      <button class="ghost" id="forget" type="button">Забыть токен</button>
+      <button class="ghost" id="refresh" type="button">Текущий релиз</button>
+    </div>
+  </section>
+
+  <section>
+    <label for="version">Имя версии</label>
+    <input id="version" value="1.0.1" inputmode="decimal">
+    <label for="code">versionCode (целое, строго больше версии на устройстве)</label>
+    <input id="code" value="2" inputmode="numeric">
+    <label for="notes">Что нового</label>
+    <textarea id="notes" placeholder="Исправления и новые плейлисты"></textarea>
+    <label for="file">APK</label>
+    <input id="file" type="file" accept=".apk,application/vnd.android.package-archive">
+    <div class="row">
+      <button id="publish" type="button">Опубликовать</button>
+    </div>
+    <p id="log" class="hint"></p>
+  </section>
+
+  <section>
+    <p class="hint">Приложение без своего адреса манифеста читает</p>
+    <p><a id="manifest" href="https://github.com/yarixxcod/lite-iptv/releases/latest/download/latest.json">releases/latest/download/latest.json</a></p>
+    <ul id="releases"></ul>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const log = (text) => { $("log").textContent = text; };
+const repoOf = () => $("repo").value.trim().replace(/^https:\/\/github.com\//, "").replace(/\.git$/, "");
+const headers = (token, extra) => Object.assign({
+  Authorization: "Bearer " + token,
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+}, extra || {});
+
+function loadLocal() {
+  $("token").value = localStorage.getItem("vvvion-token") || "";
+  $("repo").value = localStorage.getItem("vvvion-repo") || "yarixxcod/lite-iptv";
+}
+$("save").onclick = () => {
+  localStorage.setItem("vvvion-token", $("token").value.trim());
+  localStorage.setItem("vvvion-repo", repoOf());
+  log("Сохранено в этом браузере.");
+};
+$("forget").onclick = () => {
+  localStorage.removeItem("vvvion-token");
+  $("token").value = "";
+  log("Токен удалён из браузера.");
+};
+
+async function api(path, opts) {
+  const token = $("token").value.trim();
+  if (!token) throw new Error("Вставьте токен GitHub.");
+  const res = await fetch("https://api.github.com" + path, Object.assign({ headers: headers(token) }, opts || {}));
+  const text = await res.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch (_) { body = text; }
+  if (!res.ok) {
+    const message = body && body.message ? body.message : text;
+    const err = new Error(res.status + " " + message);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  return body;
+}
+
+function manifestUrl() {
+  return "https://github.com/" + repoOf() + "/releases/latest/download/latest.json";
+}
+
+async function showLatest() {
+  $("manifest").href = manifestUrl();
+  $("manifest").textContent = manifestUrl();
+  const list = $("releases");
+  list.innerHTML = "";
+  try {
+    const releases = await fetch("https://api.github.com/repos/" + repoOf() + "/releases?per_page=5", {
+      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    }).then((r) => r.json());
+    if (!Array.isArray(releases)) {
+      list.innerHTML = "<li>Релизов пока нет.</li>";
+      return;
+    }
+    const latest = releases[0];
+    if (latest) {
+      const match = String(latest.body || "").match(/versionCode:\s*(\d+)/);
+      if (match) $("code").value = String(Number(match[1]) + 1);
+      const tag = String(latest.tag_name || "v1.0.0").replace(/^v/, "");
+      const parts = tag.split(".").map((n) => parseInt(n, 10));
+      if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+        parts[2] += 1;
+        $("version").value = parts.join(".");
+      }
+    }
+    releases.forEach((rel) => {
+      const li = document.createElement("li");
+      const assets = (rel.assets || []).map((a) => a.name).join(", ") || "без файлов";
+      li.textContent = (rel.tag_name || "") + " — " + assets;
+      list.appendChild(li);
+    });
+  } catch (e) {
+    list.innerHTML = "<li>Не удалось прочитать релизы.</li>";
+  }
+}
+$("refresh").onclick = () => showLatest();
+
+async function uploadAsset(release, name, blob, type) {
+  const repo = repoOf();
+  const existing = (release.assets || []).find((a) => a.name === name);
+  if (existing) await api("/repos/" + repo + "/releases/assets/" + existing.id, { method: "DELETE" });
+  const endpoint = "https://uploads.github.com/repos/" + repo + "/releases/" + release.id + "/assets?name=" + encodeURIComponent(name);
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: headers($("token").value.trim(), { "Content-Type": type }),
+    body: blob,
+  });
+  if (!res.ok) throw new Error("Файл " + name + ": " + res.status + " " + await res.text());
+  const asset = await res.json();
+  release.assets = (release.assets || []).filter((a) => a.name !== name).concat([asset]);
+}
+
+$("publish").onclick = async () => {
+  const file = $("file").files[0];
+  const version = $("version").value.trim().replace(/^v/, "");
+  const code = Number($("code").value.trim());
+  const notes = $("notes").value.trim();
+  if (!file) return log("Выберите APK.");
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return log("Имя версии: 1.0.1");
+  if (!Number.isInteger(code) || code < 1) return log("versionCode должен быть целым числом.");
+  const repo = repoOf();
+  const tag = "v" + version;
+  const body = "versionCode: " + code + "\n\n" + notes;
+  log("Публикую " + tag + "…");
+  try {
+    let release;
+    try {
+      release = await api("/repos/" + repo + "/releases", {
+        method: "POST",
+        headers: headers($("token").value.trim(), { "Content-Type": "application/json" }),
+        body: JSON.stringify({ tag_name: tag, name: "Vvvion IPTV " + version, body, make_latest: "true" }),
+      });
+    } catch (e) {
+      if (e.status !== 422) throw e;
+      release = await api("/repos/" + repo + "/releases/tags/" + encodeURIComponent(tag));
+      await api("/repos/" + repo + "/releases/" + release.id, {
+        method: "PATCH",
+        headers: headers($("token").value.trim(), { "Content-Type": "application/json" }),
+        body: JSON.stringify({ name: "Vvvion IPTV " + version, body, make_latest: "true" }),
+      });
+    }
+    log("Загружаю APK…");
+    await uploadAsset(release, "VvvionIPTV.apk", file, "application/vnd.android.package-archive");
+    await uploadAsset(release, "VvvionIPTV-" + version + ".apk", file, "application/vnd.android.package-archive");
+    const manifest = JSON.stringify({
+      versionCode: code,
+      versionName: version,
+      apkUrl: "https://github.com/" + repo + "/releases/latest/download/VvvionIPTV.apk",
+      notes,
+    });
+    await uploadAsset(release, "latest.json", new Blob([manifest], { type: "application/json" }), "application/json");
+    log("Готово. Устройства с versionCode ниже " + code + " предложат обновление " + version + ".");
+    showLatest();
+  } catch (e) {
+    log(e.message || String(e));
+  }
+};
+
+loadLocal();
+showLatest();
+</script>
+</body>
+</html>

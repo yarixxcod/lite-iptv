@@ -1,3 +1,3 @@
-HSPLapp/liteiptv/MainActivity;-><init>()V
-HSPLapp/liteiptv/LiteApp;->onCreate()V
-HSPLapp/liteiptv/ui/HomeScreenKt;->HomeScreen(Lapp/liteiptv/ui/AppViewModel;Lapp/liteiptv/ui/PlayerViewModel;Landroidx/compose/material3/windowsizeclass/WindowWidthSizeClass;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;I)V
+HSPLplayer/vvvion/app/MainActivity;-><init>()V
+HSPLplayer/vvvion/app/LiteApp;->onCreate()V
+HSPLplayer/vvvion/app/ui/HomeScreenKt;->HomeScreen(Lplayer/vvvion/app/ui/AppViewModel;Lplayer/vvvion/app/ui/PlayerViewModel;Landroidx/compose/material3/windowsizeclass/WindowWidthSizeClass;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;I)V

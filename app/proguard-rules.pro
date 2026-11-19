@@ -26,7 +26,7 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
--keepclassmembers class app.liteiptv.data.net.** {
+-keepclassmembers class player.vvvion.app.data.net.** {
     <fields>;
 }
 

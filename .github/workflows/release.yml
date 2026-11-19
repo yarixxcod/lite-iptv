@@ -62,17 +62,26 @@ jobs:
         id: apk
         run: |
           set -euo pipefail
-          ver="${GITHUB_REF_NAME#v}"
-          if [ "$ver" = "$GITHUB_REF_NAME" ]; then ver="0.0.0"; fi
+          code=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -n 1)
+          name=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)
           src=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
-          dest="$RUNNER_TEMP/LiteIPTV-${ver}.apk"
-          cp "$src" "$dest"
-          echo "path=$dest" >> "$GITHUB_OUTPUT"
-          echo "name=LiteIPTV-${ver}.apk" >> "$GITHUB_OUTPUT"
+          cp "$src" "$RUNNER_TEMP/VvvionIPTV.apk"
+          cp "$src" "$RUNNER_TEMP/VvvionIPTV-${name}.apk"
+          printf '%s\n' "{\"versionCode\": ${code}, \"versionName\": \"${name}\", \"apkUrl\": \"https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/VvvionIPTV.apk\", \"notes\": \"Vvvion IPTV ${name}\"}" > "$RUNNER_TEMP/latest.json"
+          echo "stable=$RUNNER_TEMP/VvvionIPTV.apk" >> "$GITHUB_OUTPUT"
+          echo "versioned=$RUNNER_TEMP/VvvionIPTV-${name}.apk" >> "$GITHUB_OUTPUT"
+          echo "manifest=$RUNNER_TEMP/latest.json" >> "$GITHUB_OUTPUT"
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          echo "version=${name}" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.apk.outputs.path }}
-          generate_release_notes: true
+          name: Vvvion IPTV ${{ steps.apk.outputs.version }}
+          body: |
+            versionCode: ${{ steps.apk.outputs.code }}
+          files: |
+            ${{ steps.apk.outputs.stable }}
+            ${{ steps.apk.outputs.versioned }}
+            ${{ steps.apk.outputs.manifest }}
           fail_on_unmatched_files: true

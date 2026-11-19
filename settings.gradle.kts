@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "LiteIPTV"
+rootProject.name = "VvvionIPTV"
 include(":app")
