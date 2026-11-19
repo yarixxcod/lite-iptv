@@ -42,7 +42,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -115,7 +114,7 @@ fun HomeScreen(
     val query by vm.query.collectAsStateWithLifecycle()
     val sort by vm.sort.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val message by vm.message.collectAsStateWithLifecycle()
+    val banner by vm.banner.collectAsStateWithLifecycle()
     val editor by vm.editorOpen.collectAsStateWithLifecycle()
     val editing by vm.editing.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -337,37 +336,9 @@ fun HomeScreen(
     }
     }
 
-    if (busy) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Accent)
-        }
-    }
-    LaunchedEffect(message) {
-        if (message != null) {
-            kotlinx.coroutines.delay(4500)
-            vm.message.value = null
-        }
-    }
-    message?.let { code ->
-        val text = when (code) {
-            "pin" -> stringResource(R.string.pin_wrong)
-            "clipboard" -> stringResource(R.string.clipboard_empty)
-            "cache" -> stringResource(R.string.cache_cleared)
-            "update_none" -> stringResource(R.string.update_none)
-            "update_failed" -> stringResource(R.string.update_failed)
-            "install_permission" -> stringResource(R.string.update_install_permission)
-            "url_invalid_scheme" -> stringResource(R.string.url_invalid_scheme)
-            "url_invalid_empty" -> stringResource(R.string.url_invalid_empty)
-            "playlist_added" -> stringResource(R.string.playlist_added)
-            "playlist_updated" -> stringResource(R.string.playlist_updated)
-            "phone_import_ok" -> stringResource(R.string.phone_import_ok)
-            else -> code
-        }
-        Text(
-            text,
-            modifier = Modifier.fillMaxWidth().background(Accent).padding(12.dp),
-            color = AccentInk,
-        )
+    Box(Modifier.fillMaxWidth().align(Alignment.TopCenter)) {
+        BusyStrip(busy)
+        MessageBar(banner, onDismiss = vm::dismissBanner)
     }
     pinGroup?.let {
         PinDialog(onDismiss = vm::dismissPin, onSubmit = vm::submitPin)

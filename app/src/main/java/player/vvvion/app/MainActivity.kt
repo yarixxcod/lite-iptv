@@ -29,6 +29,7 @@ import player.vvvion.app.player.PlaybackService
 import player.vvvion.app.player.PlayerEngine
 import player.vvvion.app.ui.AppViewModel
 import player.vvvion.app.ui.HomeScreen
+import player.vvvion.app.ui.MessageKind
 import player.vvvion.app.ui.PlayerPane
 import player.vvvion.app.ui.PlayerViewModel
 import player.vvvion.app.ui.ProvideTelevision
@@ -75,7 +76,7 @@ class MainActivity : AppCompatActivity() {
             appVm.installRequests.collect { file ->
                 if (!UpdateInstaller.canInstall(this@MainActivity)) {
                     UpdateInstaller.openSettings(this@MainActivity)
-                    appVm.message.value = "install_permission"
+                    appVm.notify(MessageKind.ERROR, code = "install_permission")
                 } else {
                     UpdateInstaller.install(this@MainActivity, file)
                 }

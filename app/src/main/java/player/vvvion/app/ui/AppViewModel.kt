@@ -66,7 +66,21 @@ class AppViewModel(
     val group = MutableStateFlow("")
     val selectedPlaylistId = MutableStateFlow(-1L)
     val busy = MutableStateFlow(false)
-    val message = MutableStateFlow<String?>(null)
+    private val messageQueue = MessageQueue()
+    val banner = MutableStateFlow<UiMessage?>(null)
+
+    fun notify(kind: MessageKind, code: String? = null, raw: String? = null) {
+        banner.value = messageQueue.post(kind, code, raw).current
+    }
+
+    fun dismissBanner(id: Long? = null) {
+        banner.value = messageQueue.dismiss(id).current
+    }
+
+    private fun notifyError(error: Throwable) {
+        notify(MessageKind.ERROR, raw = (error.message ?: error.javaClass.simpleName).take(140))
+    }
+
     val editorOpen = MutableStateFlow(false)
     val editing = MutableStateFlow<PlaylistEntity?>(null)
     val qrUrl = MutableStateFlow<String?>(null)
@@ -165,7 +179,7 @@ class AppViewModel(
             group.value = target
             pinGroup.value = null
         } else {
-            message.value = "pin"
+            notify(MessageKind.ERROR, code = "pin")
         }
     }
 
@@ -243,7 +257,7 @@ class AppViewModel(
         val prepared = if (draft.type == LibraryRepository.TYPE_URL) {
             when (val check = PlaylistUrls.validateHttpUrl(draft.url)) {
                 is PlaylistUrls.Check.Invalid -> {
-                    message.value = if (check.reason == PlaylistUrls.Reason.EMPTY) "url_invalid_empty" else "url_invalid_scheme"
+                    notify(MessageKind.ERROR, code = if (check.reason == PlaylistUrls.Reason.EMPTY) "url_invalid_empty" else "url_invalid_scheme")
                     return
                 }
                 is PlaylistUrls.Check.Ok -> draft.copy(url = check.url)
@@ -255,7 +269,7 @@ class AppViewModel(
         }
         viewModelScope.launch {
             busy.value = true
-            message.value = null
+            /* stale errors are dropped by a later success */
             try {
                 val id = library.savePlaylist(prepared)
                 selectedPlaylistId.value = id
@@ -269,13 +283,16 @@ class AppViewModel(
                     reloadPlaying(id)
                     refreshEpgStatus(id)
                 }
-                message.value = when {
-                    fromPhone -> "phone_import_ok"
-                    prepared.id == 0L -> "playlist_added"
-                    else -> "playlist_updated"
-                }
+                notify(
+                    MessageKind.SUCCESS,
+                    code = when {
+                        fromPhone -> "phone_import_ok"
+                        prepared.id == 0L -> "playlist_added"
+                        else -> "playlist_updated"
+                    },
+                )
             } catch (t: Throwable) {
-                message.value = t.message ?: t.javaClass.simpleName
+                notifyError(t)
             } finally {
                 busy.value = false
             }
@@ -289,7 +306,7 @@ class AppViewModel(
     fun importClipboard(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) {
-            message.value = "clipboard"
+            notify(MessageKind.INFO, code = "clipboard")
             return
         }
         when (val check = PlaylistUrls.validateHttpUrl(trimmed)) {
@@ -297,7 +314,7 @@ class AppViewModel(
             is PlaylistUrls.Check.Invalid -> if (trimmed.contains("#EXTM3U") || trimmed.contains("#EXTINF")) {
                 save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
             } else if (check.reason == PlaylistUrls.Reason.LEADING_JUNK || trimmed.contains("http", true)) {
-                message.value = "url_invalid_scheme"
+                notify(MessageKind.ERROR, code = "url_invalid_scheme")
             } else {
                 save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
             }
@@ -316,14 +333,15 @@ class AppViewModel(
         if (id < 0) return
         viewModelScope.launch {
             busy.value = true
-            message.value = null
+            /* stale errors are dropped by a later success */
             try {
                 library.syncPlaylist(id)
                 epgRepo.sync(id, force = true)
                 reloadPlaying(id)
                 refreshEpgStatus(id)
+                notify(MessageKind.SUCCESS, code = "playlist_updated")
             } catch (t: Throwable) {
-                message.value = t.message ?: t.javaClass.simpleName
+                notifyError(t)
             } finally {
                 busy.value = false
             }
@@ -405,7 +423,7 @@ class AppViewModel(
 
     fun clearCache() {
         library.clearCaches()
-        message.value = "cache"
+        notify(MessageKind.SUCCESS, code = "cache")
     }
 
     fun refreshEpgStatus(id: Long = selectedPlaylistId.value) {
@@ -461,13 +479,13 @@ class AppViewModel(
                 val url = settingsStore.settings.first().updateManifestUrl
                 withContext(Dispatchers.IO) { updates.check(url) }
             } catch (_: Exception) {
-                if (!quiet) message.value = "update_failed"
+                if (!quiet) notify(MessageKind.ERROR, code = "update_failed")
                 updatePhase.value = "idle"
                 return@launch
             }
             availableUpdate.value = found
             updatePhase.value = if (found == null) "idle" else "available"
-            if (found == null && !quiet) message.value = "update_none"
+            if (found == null && !quiet) notify(MessageKind.INFO, code = "update_none")
         }
     }
 
@@ -485,7 +503,7 @@ class AppViewModel(
                 installEvents.emit(file)
             } catch (e: Exception) {
                 updatePhase.value = "available"
-                message.value = e.message?.take(140) ?: "update_failed"
+                notify(MessageKind.ERROR, code = "update_failed", raw = e.message?.take(140))
             }
         }
     }
