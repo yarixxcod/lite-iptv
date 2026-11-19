@@ -4,7 +4,6 @@ package player.vvvion.app.ui
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -38,7 +37,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,7 +44,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -57,9 +54,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -74,8 +69,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -98,6 +93,7 @@ import player.vvvion.app.data.repo.ChannelSort
 import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.PlaylistDraft
 import player.vvvion.app.domain.BufferProfile
+import player.vvvion.app.player.RemoteScope
 import player.vvvion.app.update.RemoteUpdate
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -144,6 +140,17 @@ fun HomeScreen(
     BackHandler(enabled = !medium && compactList && !editor) { compactList = false }
     BackHandler(enabled = editor) { vm.closeEditor() }
 
+    LaunchedEffect(editor, pinGroup, tab) {
+        val scope = when {
+            editor || pinGroup != null -> RemoteScope.UI
+            tab == HomeTab.SETTINGS || tab == HomeTab.GUIDE -> RemoteScope.UI
+            else -> RemoteScope.CHANNELS
+        }
+        vm.setRemoteScope(scope)
+    }
+
+    ProvideTelevision(television) {
+    Box(Modifier.fillMaxSize()) {
     if (editor) {
         EditorScreen(
             existing = editing,
@@ -158,8 +165,7 @@ fun HomeScreen(
             onStopQr = vm::stopPhoneLink,
             onTextFocus = vm::setTextFocused,
         )
-        return
-    }
+    } else {
 
     val compact = !television && width == WindowWidthSizeClass.Compact
     val playlistName = playlists.firstOrNull { it.id == playlistId }?.name
@@ -198,7 +204,7 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.openEditor(null) }) {
+                    IconButton(onClick = { vm.openEditor(null) }, modifier = Modifier.tvControl()) {
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_playlist))
                     }
                 },
@@ -216,6 +222,7 @@ fun HomeScreen(
                         NavigationBarItem(
                             selected = tab == value,
                             onClick = { openTab(value) },
+                            modifier = Modifier.tvControl(),
                             icon = { Icon(icon, contentDescription = label) },
                             label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         )
@@ -235,6 +242,7 @@ fun HomeScreen(
                             NavigationRailItem(
                                 selected = tab == value,
                                 onClick = { openTab(value) },
+                                modifier = Modifier.tvControl(),
                                 icon = { Icon(icon, contentDescription = label) },
                                 label = { Text(label, maxLines = 1) },
                             )
@@ -325,6 +333,8 @@ fun HomeScreen(
             }
         }
     }
+    }
+
     if (busy) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Accent)
@@ -355,6 +365,8 @@ fun HomeScreen(
     pinGroup?.let {
         PinDialog(onDismiss = vm::dismissPin, onSubmit = vm::submitPin)
     }
+    } // box
+    } // television
 }
 
 @Composable
@@ -396,8 +408,8 @@ private fun UpdateBanner(
             )
         } else {
             Row {
-                TextButton(onClick = onDownload) { Text(stringResource(R.string.update_download), color = AccentInk) }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.update_dismiss), color = Muted) }
+                TextButton(onClick = onDownload, modifier = Modifier.tvControl()) { Text(stringResource(R.string.update_download), color = AccentInk) }
+                TextButton(onClick = onDismiss, modifier = Modifier.tvControl()) { Text(stringResource(R.string.update_dismiss), color = Muted) }
             }
         }
     }
@@ -412,7 +424,7 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
     ) {
         BrandMark()
         Text(stringResource(R.string.no_playlists), color = Muted, modifier = Modifier.padding(vertical = 12.dp))
-        Button(onClick = onAdd) {
+        Button(onClick = onAdd, modifier = Modifier.tvControl()) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Text("  " + stringResource(R.string.add_playlist))
         }
@@ -449,22 +461,9 @@ private fun GroupColumn(
     }
 }
 
-@Composable
-private fun Modifier.tvFocus(enabled: Boolean, onFocused: () -> Unit = {}): Modifier {
-    var focused by remember { mutableStateOf(false) }
-    if (!enabled) return this
-    return this
-        .onFocusChanged {
-            val now = it.isFocused
-            if (now && !focused) onFocused()
-            focused = now
-        }
-        .border(
-            width = if (focused) 3.dp else 0.dp,
-            color = if (focused) Color.White else Color.Transparent,
-            shape = RoundedCornerShape(16.dp),
-        )
-}
+private fun Modifier.tvFocus(enabled: Boolean, onFocused: () -> Unit = {}): Modifier =
+    tvFocusable(enabled = enabled, shape = RoundedCornerShape(16.dp), onFocused = onFocused)
+
 
 @Composable
 private fun GroupCard(title: String, selected: Boolean, locked: Boolean, television: Boolean, onClick: () -> Unit, onLock: (() -> Unit)?) {
@@ -510,6 +509,8 @@ private fun ChannelColumn(
     onPreview: (ChannelEntity) -> Unit,
 ) {
     val paging = vm.channels.collectAsLazyPagingItems()
+    val restoreId by vm.lastListChannelId.collectAsStateWithLifecycle()
+    var restoredFocus by remember(restoreId, favorites, query, sort) { mutableStateOf(false) }
     LaunchedEffect(paging.itemSnapshotList, epgSyncStamp) {
         vm.onVisible(paging.itemSnapshotList.items.filterNotNull())
     }
@@ -522,17 +523,16 @@ private fun ChannelColumn(
                 Text(stringResource(R.string.back), style = MaterialTheme.typography.titleMedium)
             }
         }
-        OutlinedTextField(
+        TvTextField(
             value = query,
             onValueChange = { vm.query.value = it },
-            modifier = Modifier.fillMaxWidth().padding(10.dp).onFocusChanged { vm.setTextFocused(it.isFocused) },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            placeholder = { Text(stringResource(R.string.search)) },
-            singleLine = true,
+            label = stringResource(R.string.search),
+            modifier = Modifier.fillMaxWidth().padding(10.dp),
+            onEditingChange = vm::setTextFocused,
         )
         Row(Modifier.padding(horizontal = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = sort == ChannelSort.NUMBER, onClick = { vm.sort.value = ChannelSort.NUMBER }, label = { Text(stringResource(R.string.sort_number)) })
-            FilterChip(selected = sort == ChannelSort.NAME, onClick = { vm.sort.value = ChannelSort.NAME }, label = { Text(stringResource(R.string.sort_name)) })
+            TvChip(selected = sort == ChannelSort.NUMBER, onClick = { vm.sort.value = ChannelSort.NUMBER }, label = stringResource(R.string.sort_number))
+            TvChip(selected = sort == ChannelSort.NAME, onClick = { vm.sort.value = ChannelSort.NAME }, label = stringResource(R.string.sort_name))
             if (typed.isNotEmpty()) Text(typed, color = Accent, modifier = Modifier.align(Alignment.CenterVertically))
         }
         if (!favorites && recent.isNotEmpty()) {
@@ -557,10 +557,21 @@ private fun ChannelColumn(
                 val channel = paging[index] ?: return@items
                 val programs = epgNow[channel.epgKey].orEmpty()
                 val now = programs.firstOrNull { it.startUtc <= System.currentTimeMillis() && it.stopUtc > System.currentTimeMillis() }
+                    ?: programs.firstOrNull { it.stopUtc > System.currentTimeMillis() }
+                val itemFocus = remember(channel.id) { FocusRequester() }
+                LaunchedEffect(channel.id, restoreId, restoredFocus) {
+                    if (!restoredFocus && restoreId == channel.id) {
+                        if (runCatching { itemFocus.requestFocus() }.isSuccess) restoredFocus = true
+                    }
+                }
                 ListItem(
                     modifier = Modifier
                         .heightIn(min = if (television) 76.dp else 0.dp)
-                        .tvFocus(television) { onPreview(channel) }
+                        .focusRequester(itemFocus)
+                        .tvFocus(television) {
+                            onPreview(channel)
+                            vm.rememberListChannel(channel.id)
+                        }
                         .combinedClickable(
                             onClick = { onPreview(channel); onOpen(channel) },
                             onLongClick = { vm.toggleFavorite(channel) },
@@ -590,21 +601,21 @@ private fun ChannelColumn(
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (favorites) {
-                                IconButton(onClick = { vm.moveFavorite(channel, -1) }) {
+                                IconButton(onClick = { vm.moveFavorite(channel, -1) }, modifier = Modifier.tvControl()) {
                                     Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.move_up))
                                 }
-                                IconButton(onClick = { vm.moveFavorite(channel, 1) }) {
+                                IconButton(onClick = { vm.moveFavorite(channel, 1) }, modifier = Modifier.tvControl()) {
                                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.move_down))
                                 }
                             }
-                            IconButton(onClick = { vm.toggleFavorite(channel) }) {
+                            IconButton(onClick = { vm.toggleFavorite(channel) }, modifier = Modifier.tvControl()) {
                                 Icon(
                                     if (channel.streamUrl in favoriteUrls) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
                             }
-                            IconButton(onClick = { vm.hide(channel) }) {
+                            IconButton(onClick = { vm.hide(channel) }, modifier = Modifier.tvControl()) {
                                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.hide_channel))
                             }
                         }
@@ -696,16 +707,15 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
             Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineMedium)
             Text(stringResource(R.string.update_version, BuildConfig.VERSION_NAME), color = Muted)
             Text(stringResource(R.string.update_panel), color = Muted)
-            Button(onClick = { vm.openEditor(null) }) { Text(stringResource(R.string.add_playlist)) }
-            Button(onClick = { vm.checkForUpdate(false) }) { Text(stringResource(R.string.update_check)) }
+            Button(onClick = { vm.openEditor(null) }, modifier = Modifier.tvControl().padding(top = 8.dp)) { Text(stringResource(R.string.add_playlist)) }
+            Button(onClick = { vm.checkForUpdate(false) }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.update_check)) }
         }
         item {
-            OutlinedTextField(
+            TvTextField(
                 value = settings.updateManifestUrl,
                 onValueChange = { raw -> vm.updateSettings { it.copy(updateManifestUrl = raw) } },
-                label = { Text(stringResource(R.string.update_source)) },
-                modifier = Modifier.fillMaxWidth().onFocusChanged { vm.setTextFocused(it.isFocused) },
-                singleLine = true,
+                label = stringResource(R.string.update_source),
+                onEditingChange = vm::setTextFocused,
             )
         }
         item { Text(stringResource(R.string.settings_playlists), style = MaterialTheme.typography.titleLarge) }
@@ -715,9 +725,9 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
                     Text(playlist.name, style = MaterialTheme.typography.titleMedium)
                     Text(playlist.type + (playlist.lastError?.let { " · $it" } ?: ""), color = Muted, maxLines = 1)
                 }
-                TextButton(onClick = { vm.selectPlaylist(playlist.id); vm.refresh() }) { Text(stringResource(R.string.refresh)) }
-                TextButton(onClick = { vm.openEditor(playlist) }) { Text(stringResource(R.string.edit)) }
-                TextButton(onClick = { vm.deletePlaylist(playlist.id) }) { Text(stringResource(R.string.delete)) }
+                TextButton(onClick = { vm.selectPlaylist(playlist.id); vm.refresh() }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.refresh)) }
+                TextButton(onClick = { vm.openEditor(playlist) }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.edit)) }
+                TextButton(onClick = { vm.deletePlaylist(playlist.id) }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.delete)) }
             }
         }
         item { Text(stringResource(R.string.settings_playback), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp)) }
@@ -725,23 +735,22 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 BufferProfile.entries.forEach { profile ->
-                    FilterChip(
+                    TvChip(
                         selected = settings.buffer == profile,
                         onClick = { vm.updateSettings { it.copy(buffer = profile) } },
-                        label = { Text(bufferLabel(profile)) },
+                        label = bufferLabel(profile),
                     )
                 }
             }
         }
         item { HeightChoice(settings.maxHeight) { height -> vm.updateSettings { it.copy(maxHeight = height) } } }
         item {
-            OutlinedTextField(
+            TvTextField(
                 value = if (settings.maxBitrateKbps == 0) "" else settings.maxBitrateKbps.toString(),
                 onValueChange = { raw -> vm.updateSettings { it.copy(maxBitrateKbps = raw.toIntOrNull() ?: 0) } },
-                label = { Text(stringResource(R.string.settings_max_bitrate)) },
+                label = stringResource(R.string.settings_max_bitrate),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth().onFocusChanged { vm.setTextFocused(it.isFocused) },
-                singleLine = true,
+                onEditingChange = vm::setTextFocused,
             )
         }
         item { ToggleRow(stringResource(R.string.settings_preview), settings.livePreview) { checked -> vm.updateSettings { it.copy(livePreview = checked) } } }
@@ -750,34 +759,32 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
         item { ToggleRow(stringResource(R.string.settings_theme), settings.amoled) { checked -> vm.updateSettings { it.copy(amoled = checked) } } }
         item { ToggleRow(stringResource(R.string.settings_epg_unmetered), settings.epgUnmeteredOnly) { checked -> vm.updateSettings { it.copy(epgUnmeteredOnly = checked) } } }
         item {
-            OutlinedTextField(
+            TvTextField(
                 value = settings.epgRefreshHours.toString(),
                 onValueChange = { raw -> vm.updateSettings { it.copy(epgRefreshHours = raw.toIntOrNull()?.coerceIn(1, 48) ?: it.epgRefreshHours) } },
-                label = { Text(stringResource(R.string.settings_epg_hours)) },
-                modifier = Modifier.fillMaxWidth().onFocusChanged { vm.setTextFocused(it.isFocused) },
-                singleLine = true,
+                label = stringResource(R.string.settings_epg_hours),
+                onEditingChange = vm::setTextFocused,
             )
         }
         item { Text(stringResource(R.string.settings_language)) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("system" to R.string.lang_system, "en" to R.string.lang_en, "ru" to R.string.lang_ru).forEach { (code, label) ->
-                    FilterChip(selected = settings.language == code, onClick = { vm.updateSettings { it.copy(language = code) } }, label = { Text(stringResource(label)) })
+                    TvChip(selected = settings.language == code, onClick = { vm.updateSettings { it.copy(language = code) } }, label = stringResource(label))
                 }
             }
         }
         item {
-            OutlinedTextField(
+            TvTextField(
                 value = settings.userAgent,
                 onValueChange = { raw -> vm.updateSettings { it.copy(userAgent = raw) } },
-                label = { Text(stringResource(R.string.settings_ua)) },
-                modifier = Modifier.fillMaxWidth().onFocusChanged { vm.setTextFocused(it.isFocused) },
-                singleLine = true,
+                label = stringResource(R.string.settings_ua),
+                onEditingChange = vm::setTextFocused,
             )
         }
         item { PinSettings(settings.pinHash != null, vm) }
-        item { Button(onClick = vm::clearCache) { Text(stringResource(R.string.settings_clear_cache)) } }
-        item { Button(onClick = vm::refresh) { Text(stringResource(R.string.refresh)) } }
+        item { Button(onClick = vm::clearCache, modifier = Modifier.tvControl()) { Text(stringResource(R.string.settings_clear_cache)) } }
+        item { Button(onClick = vm::refresh, modifier = Modifier.tvControl()) { Text(stringResource(R.string.refresh)) } }
     }
 }
 
@@ -795,7 +802,7 @@ private fun HeightChoice(current: Int, onPick: (Int) -> Unit) {
         Text(stringResource(R.string.settings_max_height))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(0 to R.string.height_original, 480 to R.string.height_480, 720 to R.string.height_720, 1080 to R.string.height_1080).forEach { (height, label) ->
-                FilterChip(selected = current == height, onClick = { onPick(height) }, label = { Text(stringResource(label)) })
+                TvChip(selected = current == height, onClick = { onPick(height) }, label = stringResource(label))
             }
         }
     }
@@ -803,11 +810,7 @@ private fun HeightChoice(current: Int, onPick: (Int) -> Unit) {
 
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    ListItem(
-        headlineContent = { Text(label) },
-        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
-        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-    )
+    TvToggleRow(label = label, checked = checked, onChange = onChange)
 }
 
 @Composable
@@ -815,17 +818,17 @@ private fun PinSettings(hasPin: Boolean, vm: AppViewModel) {
     var pin by remember { mutableStateOf("") }
     Column {
         Text(stringResource(R.string.settings_pin))
-        OutlinedTextField(
+        TvTextField(
             value = pin,
             onValueChange = { pin = it.filter { ch -> ch.isDigit() }.take(4) },
-            modifier = Modifier.fillMaxWidth().onFocusChanged { vm.setTextFocused(it.isFocused) },
+            label = stringResource(R.string.settings_pin),
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            singleLine = true,
+            onEditingChange = vm::setTextFocused,
         )
         Row {
-            TextButton(onClick = { if (pin.length == 4) { vm.setPin(pin); pin = "" } }) { Text(stringResource(R.string.pin_set)) }
-            if (hasPin) TextButton(onClick = { vm.setPin(null); pin = "" }) { Text(stringResource(R.string.pin_clear)) }
+            TextButton(onClick = { if (pin.length == 4) { vm.setPin(pin); pin = "" } }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.pin_set)) }
+            if (hasPin) TextButton(onClick = { vm.setPin(null); pin = "" }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.pin_clear)) }
         }
     }
 }
@@ -837,12 +840,12 @@ private fun PinDialog(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.pin_enter)) },
         text = {
-            OutlinedTextField(
+            TvTextField(
                 value = pin,
                 onValueChange = { pin = it.filter { ch -> ch.isDigit() }.take(4) },
+                label = stringResource(R.string.pin_enter),
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                singleLine = true,
             )
         },
         confirmButton = { TextButton(onClick = { onSubmit(pin) }) { Text(stringResource(R.string.save)) } },
@@ -876,7 +879,7 @@ private fun EditorScreen(
         Text(stringResource(R.string.add_playlist), style = MaterialTheme.typography.headlineMedium)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
             item {
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.playlist_name)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true)
+                TvTextField(name, { name = it }, label = stringResource(R.string.playlist_name), onEditingChange = onTextFocus)
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -885,29 +888,29 @@ private fun EditorScreen(
                         LibraryRepository.TYPE_XTREAM to R.string.source_xtream,
                         LibraryRepository.TYPE_FILE to R.string.source_file,
                     ).forEach { (value, label) ->
-                        FilterChip(selected = type == value, onClick = { type = value }, label = { Text(stringResource(label)) })
+                        TvChip(selected = type == value, onClick = { type = value }, label = stringResource(label))
                     }
                 }
             }
             item {
                 if (type == LibraryRepository.TYPE_XTREAM) {
-                    OutlinedTextField(url, { url = it }, label = { Text(stringResource(R.string.field_server)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true)
+                    TvTextField(url, { url = it }, label = stringResource(R.string.field_server), onEditingChange = onTextFocus)
                 } else {
-                    OutlinedTextField(url, { url = it }, label = { Text(stringResource(R.string.field_url)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true)
+                    TvTextField(url, { url = it }, label = stringResource(R.string.field_url), onEditingChange = onTextFocus)
                 }
             }
             if (type == LibraryRepository.TYPE_XTREAM) {
-                item { OutlinedTextField(user, { user = it }, label = { Text(stringResource(R.string.field_user)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true) }
-                item { OutlinedTextField(pass, { pass = it }, label = { Text(stringResource(R.string.field_pass)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), visualTransformation = PasswordVisualTransformation(), singleLine = true) }
+                item { TvTextField(user, { user = it }, label = stringResource(R.string.field_user), onEditingChange = onTextFocus) }
+                item { TvTextField(pass, { pass = it }, label = stringResource(R.string.field_pass), visualTransformation = PasswordVisualTransformation(), onEditingChange = onTextFocus) }
             }
-            item { OutlinedTextField(epg, { epg = it }, label = { Text(stringResource(R.string.field_epg)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true) }
-            item { OutlinedTextField(hours, { hours = it }, label = { Text(stringResource(R.string.field_interval)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true) }
-            item { OutlinedTextField(tz, { tz = it }, label = { Text(stringResource(R.string.field_tz)) }, modifier = Modifier.fillMaxWidth().focus(onTextFocus), singleLine = true) }
+            item { TvTextField(epg, { epg = it }, label = stringResource(R.string.field_epg), onEditingChange = onTextFocus) }
+            item { TvTextField(hours, { hours = it }, label = stringResource(R.string.field_interval), onEditingChange = onTextFocus) }
+            item { TvTextField(tz, { tz = it }, label = stringResource(R.string.field_tz), onEditingChange = onTextFocus) }
             item {
                 Row {
-                    TextButton(onClick = onPickFile) { Text(stringResource(R.string.file_pick)) }
-                    TextButton(onClick = onPaste) { Text(stringResource(R.string.source_clipboard)) }
-                    TextButton(onClick = onStartQr) { Text(stringResource(R.string.phone_link_start)) }
+                    TextButton(onClick = onPickFile, modifier = Modifier.tvControl()) { Text(stringResource(R.string.file_pick)) }
+                    TextButton(onClick = onPaste, modifier = Modifier.tvControl()) { Text(stringResource(R.string.source_clipboard)) }
+                    TextButton(onClick = onStartQr, modifier = Modifier.tvControl()) { Text(stringResource(R.string.phone_link_start)) }
                 }
             }
             item { Text(stringResource(R.string.stalker_future), color = Muted) }
@@ -916,14 +919,14 @@ private fun EditorScreen(
                 item {
                     androidx.compose.foundation.Image(qr.asImageBitmap(), contentDescription = stringResource(R.string.qr_title), modifier = Modifier.size(220.dp))
                     qrUrl?.let { Text(it, color = Muted) }
-                    TextButton(onClick = onStopQr) { Text(stringResource(R.string.phone_link_stop)) }
+                    TextButton(onClick = onStopQr, modifier = Modifier.tvControl()) { Text(stringResource(R.string.phone_link_stop)) }
                 }
             }
             if (busy) item { Text(stringResource(R.string.syncing), color = Accent) }
         }
         Row {
-            TextButton(onClick = onClose) { Text(stringResource(R.string.cancel)) }
-            Button(onClick = {
+            TextButton(onClick = onClose, modifier = Modifier.tvControl()) { Text(stringResource(R.string.cancel)) }
+            Button(modifier = Modifier.tvControl(), onClick = {
                 onSave(
                     PlaylistDraft(
                         id = existing?.id ?: 0,
@@ -943,4 +946,3 @@ private fun EditorScreen(
     }
 }
 
-private fun Modifier.focus(onTextFocus: (Boolean) -> Unit) = onFocusChanged { onTextFocus(it.isFocused) }

@@ -23,6 +23,7 @@ import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.PlaylistDraft
 import player.vvvion.app.domain.BufferProfile
 import player.vvvion.app.player.PlaybackCoordinator
+import player.vvvion.app.player.RemoteScope
 import player.vvvion.app.update.RemoteUpdate
 import player.vvvion.app.update.UpdateRepository
 import player.vvvion.app.work.SyncScheduler
@@ -70,6 +71,7 @@ class AppViewModel(
     val qrPng = MutableStateFlow<android.graphics.Bitmap?>(null)
     val pinGroup = MutableStateFlow<String?>(null)
     val epgNow = MutableStateFlow<Map<String, List<ProgramEntity>>>(emptyMap())
+    val lastListChannelId = playback.lastListChannelId
     val favoriteUrls = selectedPlaylistId.flatMapLatest { id ->
         if (id < 0) flowOf(emptySet()) else library.observeFavoriteUrls(id).map { it.toSet() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
@@ -227,6 +229,7 @@ class AppViewModel(
 
     fun closeEditor() {
         editorOpen.value = false
+        playback.textFocused.value = false
         stopPhoneLink()
     }
 
@@ -381,6 +384,14 @@ class AppViewModel(
 
     fun setTextFocused(value: Boolean) {
         playback.textFocused.value = value
+    }
+
+    fun setRemoteScope(scope: RemoteScope) {
+        if (!playback.fullscreen.value) playback.remoteScope.value = scope
+    }
+
+    fun rememberListChannel(id: Long) {
+        if (id >= 0) playback.lastListChannelId.value = id
     }
 
     fun openHistory(channelId: Long) {

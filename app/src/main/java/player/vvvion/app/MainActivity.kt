@@ -31,6 +31,7 @@ import player.vvvion.app.ui.AppViewModel
 import player.vvvion.app.ui.HomeScreen
 import player.vvvion.app.ui.PlayerPane
 import player.vvvion.app.ui.PlayerViewModel
+import player.vvvion.app.ui.ProvideTelevision
 import player.vvvion.app.ui.VvvionTheme
 import player.vvvion.app.update.UpdateInstaller
 import player.vvvion.app.work.SyncScheduler
@@ -96,6 +97,7 @@ class MainActivity : AppCompatActivity() {
                     dp < 840 -> WindowWidthSizeClass.Medium
                     else -> WindowWidthSizeClass.Expanded
                 }
+                ProvideTelevision(television) {
                 Box(Modifier.fillMaxSize()) {
                     HomeScreen(
                         vm = appVm,
@@ -113,6 +115,7 @@ class MainActivity : AppCompatActivity() {
                             onZap = { delta -> playback.zap.tryEmit(delta) },
                         )
                     }
+                }
                 }
             }
         }
@@ -167,7 +170,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && !playback.textFocused.value) {
+        if (event.action == KeyEvent.ACTION_DOWN && playback.allowChannelKeys()) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> {
                     playback.zap.tryEmit(1)

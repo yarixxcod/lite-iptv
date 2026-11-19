@@ -166,7 +166,7 @@ fun PlayerPane(
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(R.string.video_error), style = MaterialTheme.typography.titleMedium)
                 Text(error, color = Muted)
-                TextButton(onClick = vm::retry) { Text(stringResource(R.string.retry)) }
+                TextButton(onClick = vm::retry, modifier = Modifier.tvControl()) { Text(stringResource(R.string.retry)) }
             }
         }
         if (controls && showControls) {
@@ -186,7 +186,7 @@ fun PlayerPane(
                             val title = now?.title ?: stringResource(R.string.no_program)
                             Text(stringResource(R.string.now) + "  " + title, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         }
-                        IconButton(onClick = vm::close) {
+                        IconButton(onClick = vm::close, modifier = Modifier.tvControl()) {
                             Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
                         }
                     }
@@ -199,21 +199,21 @@ fun PlayerPane(
                     next?.let { Text(stringResource(R.string.next) + "  " + clock(it.startUtc) + "  " + it.title, color = Muted, maxLines = 1) }
                     sleep?.let { Text(stringResource(R.string.player_sleep) + " " + it, color = MaterialTheme.colorScheme.primary) }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
-                        TextButton(onClick = vm::cycleAspect) { Text(aspectLabel(state.aspect)) }
-                        TextButton(onClick = { menu = "audio" }) { Text(stringResource(R.string.player_audio)) }
-                        TextButton(onClick = { menu = "subs" }) { Text(stringResource(R.string.player_subs)) }
-                        TextButton(onClick = { menu = "sleep" }) { Text(stringResource(R.string.player_sleep)) }
-                        TextButton(onClick = vm::swapLast) { Text(stringResource(R.string.player_last)) }
+                        TextButton(onClick = vm::cycleAspect, modifier = Modifier.tvControl()) { Text(aspectLabel(state.aspect)) }
+                        TextButton(onClick = { menu = "audio" }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.player_audio)) }
+                        TextButton(onClick = { menu = "subs" }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.player_subs)) }
+                        TextButton(onClick = { menu = "sleep" }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.player_sleep)) }
+                        TextButton(onClick = vm::swapLast, modifier = Modifier.tvControl()) { Text(stringResource(R.string.player_last)) }
                     }
                     when (menu) {
                         "audio" -> ChoiceList(state.audio) { vm.selectAudio(it); menu = null }
                         "subs" -> Column {
-                            TextButton(onClick = { vm.selectSubtitle(null); menu = null }) { Text(stringResource(R.string.player_off)) }
+                            TextButton(onClick = { vm.selectSubtitle(null); menu = null }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.player_off)) }
                             ChoiceList(state.subtitles) { vm.selectSubtitle(it); menu = null }
                         }
                         "sleep" -> Row {
                             listOf(0, 15, 30, 60, 90).forEach { minutes ->
-                                TextButton(onClick = { vm.sleep(minutes); menu = null }) {
+                                TextButton(onClick = { vm.sleep(minutes); menu = null }, modifier = Modifier.tvControl()) {
                                     Text(if (minutes == 0) stringResource(R.string.sleep_off) else "${minutes}m")
                                 }
                             }
@@ -235,7 +235,7 @@ fun PlayerPane(
 private fun ChoiceList(items: List<TrackChoice>, onPick: (TrackChoice) -> Unit) {
     Column {
         items.forEach { item ->
-            TextButton(onClick = { onPick(item) }) {
+            TextButton(onClick = { onPick(item) }, modifier = Modifier.tvControl()) {
                 Text((if (item.selected) "● " else "") + item.label)
             }
         }
