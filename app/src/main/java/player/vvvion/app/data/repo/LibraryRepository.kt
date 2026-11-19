@@ -3,6 +3,7 @@ package player.vvvion.app.data.repo
 import android.content.Context
 import android.net.Uri
 import androidx.paging.PagingSource
+import androidx.room.withTransaction
 import player.vvvion.app.data.db.AppDatabase
 import player.vvvion.app.data.db.ChannelEntity
 import player.vvvion.app.data.db.FavoriteEntity
@@ -229,9 +230,11 @@ class LibraryRepository(
     }
 
     private suspend fun rewriteFavorites(playlistId: Long, urls: List<String>) {
-        db.favorites().clear(playlistId)
-        if (urls.isNotEmpty()) {
-            db.favorites().insertAll(urls.mapIndexed { index, url -> FavoriteEntity(playlistId, url, index) })
+        db.withTransaction {
+            db.favorites().clear(playlistId)
+            if (urls.isNotEmpty()) {
+                db.favorites().insertAll(urls.mapIndexed { index, url -> FavoriteEntity(playlistId, url, index) })
+            }
         }
     }
 

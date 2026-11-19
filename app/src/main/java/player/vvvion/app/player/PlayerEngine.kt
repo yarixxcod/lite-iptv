@@ -139,24 +139,36 @@ class PlayerEngine(
     }
 
     fun pause() {
-        player?.pause()
+        onMain { player?.pause() }
     }
 
     fun resume() {
-        player?.play()
+        onMain { player?.play() }
     }
 
     fun stop() {
-        player?.stop()
-        _state.value = _state.value.copy(playing = false, rebuffering = false)
+        onMain {
+            player?.stop()
+            _state.value = _state.value.copy(playing = false, rebuffering = false)
+        }
     }
 
     fun retry() {
-        val exo = player ?: return
-        val url = urls.getOrNull(urlIndex) ?: return
-        exo.playWhenReady = true
-        prepare(exo, url)
+        onMain {
+            val exo = player ?: return@onMain
+            val url = urls.getOrNull(urlIndex) ?: return@onMain
+            exo.playWhenReady = true
+            prepare(exo, url)
+        }
     }
+
+    fun nextSource(): Boolean {
+        if (urlIndex + 1 >= urls.size) return false
+        onMain { advanceUrl() }
+        return true
+    }
+
+    fun hasBackup(): Boolean = urlIndex + 1 < urls.size
 
     fun reconnectIfNeeded() {
         val exo = player ?: return
@@ -188,6 +200,8 @@ class PlayerEngine(
     }
 
     fun release() {
+        onMain {
+        if (player == null && !networkHooked) return@onMain
         try {
             val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             cm.unregisterNetworkCallback(networkCallback)
@@ -198,6 +212,7 @@ class PlayerEngine(
         player = null
         profile = null
         userAgent = null
+        }
     }
 
     private fun select(choice: TrackChoice, type: Int) {
@@ -382,6 +397,11 @@ class PlayerEngine(
             rebuffering = false,
             playing = false,
         )
+    }
+
+    private fun onMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block()
+        else mainHandler.post(block)
     }
 
     private fun mimeFor(url: String): String? {

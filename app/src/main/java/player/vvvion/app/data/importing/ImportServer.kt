@@ -62,6 +62,7 @@ class ImportServer(
     }
 
     private fun handle(socket: Socket) {
+        try {
         socket.use { client ->
             client.soTimeout = 20_000
             val input = client.getInputStream()
@@ -101,6 +102,9 @@ class ImportServer(
                 out.write(response)
                 out.flush()
             }
+        }
+        } catch (_: Throwable) {
+            // Keep the import listener running after a bad request or I/O error.
         }
     }
 

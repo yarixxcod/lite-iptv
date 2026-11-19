@@ -134,4 +134,9 @@
     <string name="epg_status_error">Ошибка программы: %1$s</string>
     <string name="epg_status_url">Адрес программы: %1$s</string>
     <string name="message_close">Закрыть</string>
+    <string name="diagnostics">Диагностика</string>
+    <string name="diagnostics_empty">Сообщений о сбоях пока нет.</string>
+    <string name="diagnostics_refresh">Обновить отчёт о сбое</string>
+    <string name="buffering">Буферизация…</string>
+    <string name="next_source">Резервный поток</string>
 </resources>

@@ -3,6 +3,7 @@ package player.vvvion.app
 import android.app.Application
 import player.vvvion.app.data.net.HttpClients
 import player.vvvion.app.di.appModule
+import player.vvvion.app.util.CrashLog
 import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
@@ -16,6 +17,7 @@ import org.koin.core.logger.Level
 class LiteApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        CrashLog.inApp(this).install()
         startKoin {
             androidLogger(Level.ERROR)
             androidContext(this@LiteApp)

@@ -134,4 +134,9 @@
     <string name="epg_status_error">Guide error: %1$s</string>
     <string name="epg_status_url">Guide URL: %1$s</string>
     <string name="message_close">Dismiss</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="diagnostics_empty">No crash reports yet.</string>
+    <string name="diagnostics_refresh">Reload crash report</string>
+    <string name="buffering">Buffering…</string>
+    <string name="next_source">Next source</string>
 </resources>

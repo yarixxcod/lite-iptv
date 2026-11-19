@@ -689,6 +689,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
             Button(onClick = { vm.checkForUpdate(false) }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.update_check)) }
         }
         item { EpgStatusCard(epgStatus) }
+        item { DiagnosticsCard() }
         item {
             TvTextField(
                 value = settings.updateManifestUrl,
@@ -941,5 +942,25 @@ private fun EpgStatusCard(status: player.vvvion.app.data.repo.EpgStatus) {
         Text(stringResource(R.string.epg_status_matched, status.matchedChannels, status.totalChannels))
         status.epgUrl?.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.epg_status_url, it), color = Muted, maxLines = 2) }
         status.lastError?.let { Text(stringResource(R.string.epg_status_error, it), color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+
+@Composable
+private fun DiagnosticsCard() {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf(player.vvvion.app.util.CrashLog.inApp(context).latest()) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.titleLarge)
+        Text(
+            report ?: stringResource(R.string.diagnostics_empty),
+            color = Muted,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 16,
+        )
+        Button(
+            onClick = { report = player.vvvion.app.util.CrashLog.inApp(context).latest() },
+            modifier = Modifier.tvControl().padding(top = 8.dp),
+        ) { Text(stringResource(R.string.diagnostics_refresh)) }
     }
 }
