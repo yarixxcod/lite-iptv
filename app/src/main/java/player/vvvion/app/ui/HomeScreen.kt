@@ -125,6 +125,7 @@ fun HomeScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
     val epgNow by vm.epgNow.collectAsStateWithLifecycle()
+    val favoriteUrls by vm.favoriteUrls.collectAsStateWithLifecycle()
     val typed by vm.typedNumber.collectAsStateWithLifecycle()
     val pinGroup by vm.pinGroup.collectAsStateWithLifecycle()
     val qr by vm.qrPng.collectAsStateWithLifecycle()
@@ -280,6 +281,7 @@ fun HomeScreen(
                                 query = query,
                                 sort = sort,
                                 epgNow = epgNow,
+                                favoriteUrls = favoriteUrls,
                                 recent = recent,
                                 favorites = tab == HomeTab.FAVORITES,
                                 typed = typed,
@@ -488,6 +490,7 @@ private fun ChannelColumn(
     query: String,
     sort: ChannelSort,
     epgNow: Map<String, List<player.vvvion.app.data.db.ProgramEntity>>,
+    favoriteUrls: Set<String>,
     recent: List<player.vvvion.app.data.db.HistoryEntity>,
     favorites: Boolean,
     typed: String,
@@ -587,7 +590,7 @@ private fun ChannelColumn(
                             }
                             IconButton(onClick = { vm.toggleFavorite(channel) }) {
                                 Icon(
-                                    if (favorites) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    if (channel.streamUrl in favoriteUrls) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
