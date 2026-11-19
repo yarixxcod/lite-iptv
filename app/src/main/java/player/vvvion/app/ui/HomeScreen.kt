@@ -27,26 +27,41 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,7 +85,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
 import player.vvvion.app.BuildConfig
 import player.vvvion.app.R
 import player.vvvion.app.data.db.ChannelEntity
@@ -140,87 +154,162 @@ fun HomeScreen(
         return
     }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        offer?.let {
-            UpdateBanner(it, updatePhase, updateFraction, vm::downloadUpdate, vm::dismissUpdate)
-        }
-        Row(Modifier.weight(1f).fillMaxWidth()) {
-        NavRail(
-            tab = tab,
-            onTab = {
-                vm.tab.value = it
-                compactList = it != HomeTab.LIVE
-            },
-            vertical = true,
-        )
-        if (playlists.isEmpty() && tab != HomeTab.SETTINGS) {
-            EmptyLibrary(onAdd = { vm.openEditor(null) })
-            return@Row
-        }
-        when (tab) {
-            HomeTab.SETTINGS -> SettingsScreen(
-                vm = vm,
-                settings = settings,
-                playlists = playlists,
-                modifier = Modifier.weight(1f),
-            )
-            HomeTab.GUIDE -> GuideScreen(
-                vm = vm,
-                programs = guide,
-                modifier = Modifier.weight(1f),
-                onOpen = { playerVm.channel.value?.let { vm.selectChannel(it, true) } },
-            )
-            else -> {
-                if (medium || !compactList) {
-                    if (tab == HomeTab.LIVE) {
-                        GroupColumn(
-                            groups = groups,
-                            selected = group,
-                            locked = settings.lockedGroups,
-                            playlistId = playlistId,
-                            onSelect = {
-                                vm.selectGroup(it)
-                                if (!medium) compactList = true
-                            },
-                            onLock = vm::toggleLock,
-                            modifier = if (medium) Modifier.width(240.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
+    val compact = width == WindowWidthSizeClass.Compact
+    val playlistName = playlists.firstOrNull { it.id == playlistId }?.name
+    val navItems = listOf(
+        Triple(HomeTab.LIVE, stringResource(R.string.tab_live), Icons.Filled.Home),
+        Triple(HomeTab.FAVORITES, stringResource(R.string.tab_favorites), Icons.Filled.Favorite),
+        Triple(HomeTab.GUIDE, stringResource(R.string.tab_guide), Icons.Filled.DateRange),
+        Triple(HomeTab.SETTINGS, stringResource(R.string.tab_settings), Icons.Filled.Settings),
+    )
+    fun openTab(next: HomeTab) {
+        vm.tab.value = next
+        compactList = next != HomeTab.LIVE
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    Image(
+                        painter = painterResource(R.drawable.brand_mark),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier.padding(start = 12.dp).size(32.dp),
+                    )
+                },
+                title = {
+                    Column {
+                        Text("VVVION", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            playlistName ?: stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                }
-                if (medium || compactList || tab == HomeTab.FAVORITES) {
-                    ChannelColumn(
-                        vm = vm,
-                        query = query,
-                        sort = sort,
-                        epgNow = epgNow,
-                        recent = recent,
-                        favorites = tab == HomeTab.FAVORITES,
-                        typed = typed,
-                        modifier = Modifier.width(if (expanded) 460.dp else if (medium) 420.dp else 10.dp).let {
-                            if (medium) it.fillMaxHeight() else it.weight(1f).fillMaxHeight()
-                        },
-                        onOpen = { vm.selectChannel(it, !expanded) },
-                        onPreview = { vm.selectChannel(it, false) },
-                    )
-                }
-                if (expanded) {
-                    Column(Modifier.weight(1f).fillMaxHeight().padding(12.dp)) {
-                        PlayerPane(
-                            vm = playerVm,
-                            modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)),
-                            controls = false,
-                            onOpen = { preview?.let { vm.selectChannel(it, true) } },
+                },
+                actions = {
+                    IconButton(onClick = { vm.openEditor(null) }) {
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_playlist))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            )
+        },
+        bottomBar = {
+            if (compact) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                    navItems.forEach { (value, label, icon) ->
+                        NavigationBarItem(
+                            selected = tab == value,
+                            onClick = { openTab(value) },
+                            icon = { Icon(icon, contentDescription = label) },
+                            label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         )
-                        Spacer(Modifier.height(12.dp))
-                        val programs = guide
-                        val now = currentProgram(programs)
-                        Text(preview?.name ?: stringResource(R.string.no_program), style = MaterialTheme.typography.titleLarge)
-                        Text(now?.let { stringResource(R.string.now) + "  " + it.title } ?: stringResource(R.string.no_program), color = Muted)
-                        now?.description?.let { Text(it, maxLines = 3, color = Muted, modifier = Modifier.padding(top = 6.dp)) }
                     }
                 }
             }
-        }
+        },
+    ) { inner ->
+        Column(Modifier.padding(inner).fillMaxSize()) {
+            offer?.let {
+                UpdateBanner(it, updatePhase, updateFraction, vm::downloadUpdate, vm::dismissUpdate)
+            }
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+                if (!compact) {
+                    NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                        navItems.forEach { (value, label, icon) ->
+                            NavigationRailItem(
+                                selected = tab == value,
+                                onClick = { openTab(value) },
+                                icon = { Icon(icon, contentDescription = label) },
+                                label = { Text(label, maxLines = 1) },
+                            )
+                        }
+                    }
+                }
+                if (playlists.isEmpty() && tab != HomeTab.SETTINGS) {
+                    EmptyLibrary(onAdd = { vm.openEditor(null) })
+                    return@Row
+                }
+                when (tab) {
+                    HomeTab.SETTINGS -> SettingsScreen(
+                        vm = vm,
+                        settings = settings,
+                        playlists = playlists,
+                        modifier = Modifier.weight(1f),
+                    )
+                    HomeTab.GUIDE -> GuideScreen(
+                        vm = vm,
+                        programs = guide,
+                        modifier = Modifier.weight(1f),
+                        onOpen = { playerVm.channel.value?.let { vm.selectChannel(it, true) } },
+                    )
+                    else -> {
+                        if (medium || !compactList) {
+                            if (tab == HomeTab.LIVE) {
+                                GroupColumn(
+                                    groups = groups,
+                                    selected = group,
+                                    locked = settings.lockedGroups,
+                                    playlistId = playlistId,
+                                    onSelect = {
+                                        vm.selectGroup(it)
+                                        if (!medium) compactList = true
+                                    },
+                                    onLock = vm::toggleLock,
+                                    modifier = if (medium) Modifier.width(280.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
+                                )
+                            }
+                        }
+                        if (medium || compactList || tab == HomeTab.FAVORITES) {
+                            ChannelColumn(
+                                vm = vm,
+                                query = query,
+                                sort = sort,
+                                epgNow = epgNow,
+                                recent = recent,
+                                favorites = tab == HomeTab.FAVORITES,
+                                typed = typed,
+                                modifier = when {
+                                    expanded -> Modifier.width(420.dp).fillMaxHeight()
+                                    medium -> Modifier.width(360.dp).fillMaxHeight()
+                                    else -> Modifier.weight(1f).fillMaxHeight()
+                                },
+                                onBack = if (!medium && tab == HomeTab.LIVE) {
+                                    { compactList = false }
+                                } else {
+                                    null
+                                },
+                                onOpen = { vm.selectChannel(it, !expanded) },
+                                onPreview = { vm.selectChannel(it, false) },
+                            )
+                        }
+                        if (expanded) {
+                            Column(Modifier.weight(1f).fillMaxHeight().padding(12.dp)) {
+                                PlayerPane(
+                                    vm = playerVm,
+                                    modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)),
+                                    controls = false,
+                                    onOpen = { preview?.let { vm.selectChannel(it, true) } },
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                val programs = guide
+                                val now = currentProgram(programs)
+                                Text(preview?.name ?: stringResource(R.string.no_program), style = MaterialTheme.typography.titleLarge)
+                                Text(now?.let { stringResource(R.string.now) + "  " + it.title } ?: stringResource(R.string.no_program), color = Muted)
+                                now?.description?.let { Text(it, maxLines = 3, color = Muted, modifier = Modifier.padding(top = 6.dp)) }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     if (busy) {
@@ -296,62 +385,6 @@ private fun UpdateBanner(
 }
 
 @Composable
-private fun NavRail(tab: HomeTab, onTab: (HomeTab) -> Unit, vertical: Boolean) {
-    val items = listOf(
-        HomeTab.LIVE to stringResource(R.string.tab_live),
-        HomeTab.FAVORITES to stringResource(R.string.tab_favorites),
-        HomeTab.GUIDE to stringResource(R.string.tab_guide),
-        HomeTab.SETTINGS to stringResource(R.string.tab_settings),
-    )
-    if (vertical) {
-        Column(
-            Modifier.width(112.dp).fillMaxHeight().background(InkRaised).padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            BrandMark()
-            items.forEach { (value, label) ->
-                RailButton(label, value == tab) { onTab(value) }
-            }
-        }
-    } else {
-        Row(Modifier.fillMaxWidth().background(InkRaised).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items.forEach { (value, label) ->
-                Box(Modifier.weight(1f)) { RailButton(label, value == tab) { onTab(value) } }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VvvionCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    onLongClick: (() -> Unit)? = null,
-    content: @Composable () -> Unit,
-) {
-    Surface(
-        modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        content = content,
-    )
-}
-
-@Composable
-private fun RailButton(label: String, selected: Boolean, onClick: () -> Unit) {
-    VvvionCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 14.dp),
-            color = if (selected) Accent else Mist,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
 private fun EmptyLibrary(onAdd: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(32.dp),
@@ -377,11 +410,12 @@ private fun GroupColumn(
     onLock: (String) -> Unit,
     modifier: Modifier,
 ) {
+    val rows = groups.distinctBy { it.title }
     LazyColumn(modifier.background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(8.dp)) {
         item {
             GroupCard(stringResource(R.string.all_groups), selected.isEmpty(), false, { onSelect("") }, null)
         }
-        items(groups, key = { it.title }) { row ->
+        items(rows, key = { it.title }) { row ->
             val isLocked = lockKey(playlistId, row.title) in locked
             GroupCard(
                 title = "${row.title}  ${row.count}",
@@ -396,11 +430,26 @@ private fun GroupColumn(
 
 @Composable
 private fun GroupCard(title: String, selected: Boolean, locked: Boolean, onClick: () -> Unit, onLock: (() -> Unit)?) {
-    VvvionCard(onClick = onClick, onLongClick = onLock, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = if (selected) Accent else Mist, modifier = Modifier.weight(1f), maxLines = 2)
-            if (locked) Icon(Icons.Filled.Lock, contentDescription = null, tint = Accent)
-        }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLock),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        ListItem(
+            headlineContent = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            trailingContent = if (locked) {
+                { Icon(Icons.Filled.Lock, contentDescription = null) }
+            } else {
+                null
+            },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        )
     }
 }
 
@@ -414,6 +463,7 @@ private fun ChannelColumn(
     favorites: Boolean,
     typed: String,
     modifier: Modifier,
+    onBack: (() -> Unit)? = null,
     onOpen: (ChannelEntity) -> Unit,
     onPreview: (ChannelEntity) -> Unit,
 ) {
@@ -422,6 +472,14 @@ private fun ChannelColumn(
         vm.onVisible(paging.itemSnapshotList.items.filterNotNull())
     }
     Column(modifier) {
+        if (onBack != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                }
+                Text(stringResource(R.string.back), style = MaterialTheme.typography.titleMedium)
+            }
+        }
         OutlinedTextField(
             value = query,
             onValueChange = { vm.query.value = it },
@@ -450,36 +508,63 @@ private fun ChannelColumn(
             )
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(count = paging.itemCount, key = paging.itemKey { it.id }) { index ->
+            items(
+                count = paging.itemCount,
+                key = { index -> paging.peek(index)?.id?.let { "c$it#$index" } ?: "p$index" },
+            ) { index ->
                 val channel = paging[index] ?: return@items
                 val programs = epgNow[channel.epgKey].orEmpty()
                 val now = programs.firstOrNull { it.startUtc <= System.currentTimeMillis() && it.stopUtc > System.currentTimeMillis() }
-                VvvionCard(
-                    onClick = { onPreview(channel); onOpen(channel) },
-                    onLongClick = { vm.toggleFavorite(channel) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        ChannelLogo(channel.logo)
-                        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                            Text("${channel.number}   ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                            Text(now?.title ?: stringResource(R.string.no_program), color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                ListItem(
+                    modifier = Modifier.combinedClickable(
+                        onClick = { onPreview(channel); onOpen(channel) },
+                        onLongClick = { vm.toggleFavorite(channel) },
+                    ),
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    leadingContent = { ChannelLogo(channel.logo) },
+                    headlineContent = {
+                        Text("${channel.number}   ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    },
+                    supportingContent = {
+                        Column {
+                            Text(
+                                now?.title ?: stringResource(R.string.no_program),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                             if (now != null) {
-                                LinearProgressIndicator(progress = { programProgress(now) }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                                LinearProgressIndicator(
+                                    progress = { programProgress(now) },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                )
                             }
                         }
-                        if (favorites) {
-                            IconButton(onClick = { vm.moveFavorite(channel, -1) }) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.move_up)) }
-                            IconButton(onClick = { vm.moveFavorite(channel, 1) }) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.move_down)) }
+                    },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (favorites) {
+                                IconButton(onClick = { vm.moveFavorite(channel, -1) }) {
+                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.move_up))
+                                }
+                                IconButton(onClick = { vm.moveFavorite(channel, 1) }) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.move_down))
+                                }
+                            }
+                            IconButton(onClick = { vm.toggleFavorite(channel) }) {
+                                Icon(
+                                    if (favorites) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            IconButton(onClick = { vm.hide(channel) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.hide_channel))
+                            }
                         }
-                        IconButton(onClick = { vm.toggleFavorite(channel) }) {
-                            Icon(if (favorites) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, tint = Accent)
-                        }
-                        IconButton(onClick = { vm.hide(channel) }) {
-                            Text(stringResource(R.string.hide_channel), color = Muted)
-                        }
-                    }
-                }
+                    },
+                )
             }
         }
     }
@@ -673,10 +758,11 @@ private fun HeightChoice(current: Int, onPick: (Int) -> Unit) {
 
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
+    ListItem(
+        headlineContent = { Text(label) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
+        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+    )
 }
 
 @Composable

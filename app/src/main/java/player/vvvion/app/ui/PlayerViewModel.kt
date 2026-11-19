@@ -58,18 +58,26 @@ class PlayerViewModel(
                 }
                 val key = listOf(current.id, settings.buffer.name, settings.maxHeight, settings.maxBitrateKbps, settings.userAgent).joinToString("|")
                 if (key != lastKey) {
-                    engine.play(
-                        urls = altList(current),
-                        profile = settings.buffer,
-                        maxHeight = settings.maxHeight,
-                        maxBitrateKbps = settings.maxBitrateKbps,
-                        userAgent = settings.effectiveUserAgent(null),
-                        muted = !full,
-                    )
+                    val started = try {
+                        engine.play(
+                            urls = altList(current),
+                            profile = settings.buffer,
+                            maxHeight = settings.maxHeight,
+                            maxBitrateKbps = settings.maxBitrateKbps,
+                            userAgent = settings.effectiveUserAgent(null),
+                            muted = !full,
+                        )
+                    } catch (_: Throwable) {
+                        false
+                    }
+                    if (!started) return@collect
                     lastKey = key
                     if (full) {
-                        library.remember(current, 0)
-                        settingsStore.update { it.copy(lastChannelId = current.id, lastPlaylistId = current.playlistId) }
+                        try {
+                            library.remember(current, 0)
+                            settingsStore.update { it.copy(lastChannelId = current.id, lastPlaylistId = current.playlistId) }
+                        } catch (_: Throwable) {
+                        }
                     }
                 } else {
                     engine.setMuted(!full)

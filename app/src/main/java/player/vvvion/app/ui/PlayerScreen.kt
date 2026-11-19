@@ -3,6 +3,7 @@
 package player.vvvion.app.ui
 
 import android.view.KeyEvent
+import android.view.LayoutInflater
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +16,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -117,10 +123,10 @@ fun PlayerPane(
             AndroidView(
                 modifier = frameMod,
                 factory = { context ->
-                    PlayerView(context).apply {
-                        useController = false
-                        setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                    }
+                    val view = LayoutInflater.from(context).inflate(R.layout.vvvion_player, null) as PlayerView
+                    view.useController = false
+                    view.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    view
                 },
                 update = { view ->
                     view.player = vm.player()
@@ -130,6 +136,7 @@ fun PlayerPane(
                         else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
                 },
+                onRelease = { view -> view.player = null },
             )
         }
         if (state.weak) {
@@ -153,38 +160,52 @@ fun PlayerPane(
             }
         }
         if (controls && showControls) {
-            Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .background(Ink.copy(alpha = 0.82f))
-                    .padding(20.dp),
+            Surface(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             ) {
-                Text(
-                    channel?.let { "${it.number}  ${it.name}" } ?: stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                val title = now?.title ?: stringResource(R.string.no_program)
-                Text(stringResource(R.string.now) + "  " + title, color = Mist)
-                LinearProgressIndicator(progress = { programProgress(now) }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
-                next?.let { Text(stringResource(R.string.next) + "  " + clock(it.startUtc) + "  " + it.title, color = Muted) }
-                sleep?.let { Text(stringResource(R.string.player_sleep) + " " + it, color = Accent) }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    TextButton(onClick = vm::cycleAspect) { Text(aspectLabel(state.aspect)) }
-                    TextButton(onClick = { menu = "audio" }) { Text(stringResource(R.string.player_audio)) }
-                    TextButton(onClick = { menu = "subs" }) { Text(stringResource(R.string.player_subs)) }
-                    TextButton(onClick = { menu = "sleep" }) { Text(stringResource(R.string.player_sleep)) }
-                    TextButton(onClick = vm::swapLast) { Text(stringResource(R.string.player_last)) }
-                    TextButton(onClick = vm::close) { Text(stringResource(R.string.close)) }
-                }
-                when (menu) {
-                    "audio" -> ChoiceList(state.audio) { vm.selectAudio(it); menu = null }
-                    "subs" -> Column {
-                        TextButton(onClick = { vm.selectSubtitle(null); menu = null }) { Text(stringResource(R.string.player_off)) }
-                        ChoiceList(state.subtitles) { vm.selectSubtitle(it); menu = null }
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                channel?.let { "${it.number}  ${it.name}" } ?: stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                            )
+                            val title = now?.title ?: stringResource(R.string.no_program)
+                            Text(stringResource(R.string.now) + "  " + title, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        }
+                        IconButton(onClick = vm::close) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+                        }
                     }
-                    "sleep" -> Row {
-                        listOf(0, 15, 30, 60, 90).forEach { minutes ->
-                            TextButton(onClick = { vm.sleep(minutes); menu = null }) {
-                                Text(if (minutes == 0) stringResource(R.string.sleep_off) else "${minutes}m")
+                    LinearProgressIndicator(
+                        progress = { programProgress(now) },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
+                    next?.let { Text(stringResource(R.string.next) + "  " + clock(it.startUtc) + "  " + it.title, color = Muted, maxLines = 1) }
+                    sleep?.let { Text(stringResource(R.string.player_sleep) + " " + it, color = MaterialTheme.colorScheme.primary) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        TextButton(onClick = vm::cycleAspect) { Text(aspectLabel(state.aspect)) }
+                        TextButton(onClick = { menu = "audio" }) { Text(stringResource(R.string.player_audio)) }
+                        TextButton(onClick = { menu = "subs" }) { Text(stringResource(R.string.player_subs)) }
+                        TextButton(onClick = { menu = "sleep" }) { Text(stringResource(R.string.player_sleep)) }
+                        TextButton(onClick = vm::swapLast) { Text(stringResource(R.string.player_last)) }
+                    }
+                    when (menu) {
+                        "audio" -> ChoiceList(state.audio) { vm.selectAudio(it); menu = null }
+                        "subs" -> Column {
+                            TextButton(onClick = { vm.selectSubtitle(null); menu = null }) { Text(stringResource(R.string.player_off)) }
+                            ChoiceList(state.subtitles) { vm.selectSubtitle(it); menu = null }
+                        }
+                        "sleep" -> Row {
+                            listOf(0, 15, 30, 60, 90).forEach { minutes ->
+                                TextButton(onClick = { vm.sleep(minutes); menu = null }) {
+                                    Text(if (minutes == 0) stringResource(R.string.sleep_off) else "${minutes}m")
+                                }
                             }
                         }
                     }

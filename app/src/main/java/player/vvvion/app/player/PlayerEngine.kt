@@ -83,18 +83,28 @@ class PlayerEngine(
         maxBitrateKbps: Int,
         userAgent: String,
         muted: Boolean,
-    ) {
+    ): Boolean {
         val clean = urls.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-        if (clean.isEmpty()) return
-        this.urls = clean
-        urlIndex = 0
-        ensurePlayer(profile, userAgent)
-        applyCaps(maxHeight, maxBitrateKbps)
-        val exo = player ?: return
-        exo.volume = if (muted) 0f else 1f
-        prepare(exo, clean.first())
-        hookNetwork()
-        _state.value = _state.value.copy(error = null, rebuffering = true)
+        if (clean.isEmpty()) return false
+        return try {
+            this.urls = clean
+            urlIndex = 0
+            ensurePlayer(profile, userAgent)
+            applyCaps(maxHeight, maxBitrateKbps)
+            val exo = player ?: return false
+            exo.volume = if (muted) 0f else 1f
+            prepare(exo, clean.first())
+            hookNetwork()
+            _state.value = _state.value.copy(error = null, rebuffering = true)
+            true
+        } catch (t: Throwable) {
+            _state.value = _state.value.copy(
+                error = t.message?.take(180) ?: t.javaClass.simpleName,
+                rebuffering = false,
+                playing = false,
+            )
+            false
+        }
     }
 
     fun setMuted(muted: Boolean) {
@@ -307,13 +317,13 @@ class PlayerEngine(
 
     private fun hookNetwork() {
         if (networkHooked) return
-        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
         try {
+            val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
             if (Build.VERSION.SDK_INT >= 24) cm.registerDefaultNetworkCallback(networkCallback)
             else cm.registerNetworkCallback(request, networkCallback)
             networkHooked = true
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
     }
 

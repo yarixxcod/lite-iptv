@@ -184,7 +184,10 @@ class AppViewModel(
         val id = selectedPlaylistId.value
         if (id < 0 || channels.isEmpty()) return
         viewModelScope.launch {
-            epgNow.value = epgRepo.nowAndNext(id, channels.map { it.epgKey })
+            try {
+                epgNow.value = epgRepo.nowAndNext(id, channels.map { it.epgKey })
+            } catch (_: Throwable) {
+            }
         }
     }
 

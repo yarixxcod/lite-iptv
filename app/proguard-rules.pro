@@ -62,3 +62,30 @@
     *** Companion;
 }
 
+# PlayerView is inflated by class name and reads these fields via getstatic.
+# R8 was renaming PlayerView and stripping the API 34 surface helper, which
+# crashes the process the moment a channel starts on Android 14+.
+-keep class androidx.media3.ui.PlayerView { *; }
+-keep class androidx.media3.ui.PlayerView$* { *; }
+-keep class androidx.media3.ui.AspectRatioFrameLayout { *; }
+-keep class androidx.media3.ui.AspectRatioFrameLayout$* { *; }
+-keep class androidx.media3.ui.SubtitleView { *; }
+-keep class androidx.media3.ui.SubtitleView$* { *; }
+-keep class androidx.media3.ui.CanvasSubtitleOutput { *; }
+-keep class androidx.media3.ui.PlayerControlView { *; }
+-keep class androidx.media3.ui.PlayerControlView$* { *; }
+-keep class androidx.media3.ui.DefaultTimeBar { *; }
+-keepclassmembers class androidx.media3.ui.R$* { public static <fields>; }
+
+-keep class androidx.media3.exoplayer.hls.HlsMediaSource { *; }
+-keep class androidx.media3.exoplayer.hls.HlsMediaSource$Factory { *; }
+-keep class androidx.media3.exoplayer.dash.DashMediaSource { *; }
+-keep class androidx.media3.exoplayer.dash.DashMediaSource$Factory { *; }
+-keep class androidx.media3.exoplayer.rtsp.RtspMediaSource { *; }
+-keep class androidx.media3.exoplayer.rtsp.RtspMediaSource$Factory { *; }
+-keep class androidx.media3.exoplayer.smoothstreaming.SsMediaSource { *; }
+-keep class androidx.media3.exoplayer.smoothstreaming.SsMediaSource$Factory { *; }
+-keep class androidx.media3.datasource.okhttp.OkHttpDataSource { *; }
+-keep class androidx.media3.datasource.okhttp.OkHttpDataSource$Factory { *; }
+
+
