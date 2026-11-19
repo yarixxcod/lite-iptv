@@ -231,6 +231,11 @@ class AppViewModel(
     }
 
     fun save(draft: PlaylistDraft) {
+        val source = draft.url?.trim().orEmpty()
+        if (draft.type == LibraryRepository.TYPE_URL && !source.startsWith("http://", true) && !source.startsWith("https://", true)) {
+            message.value = "Неверный адрес плейлиста. URL должен начинаться с http:// или https://. Проверьте, нет ли лишнего символа перед http."
+            return
+        }
         viewModelScope.launch {
             busy.value = true
             message.value = null
@@ -264,7 +269,7 @@ class AppViewModel(
             message.value = "clipboard"
             return
         }
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        if (trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) {
             save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_URL, url = trimmed))
         } else {
             save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
