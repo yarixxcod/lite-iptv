@@ -208,6 +208,15 @@ class EpgRepository(
         return out
     }
 
+    suspend fun programsForDay(channel: ChannelEntity, startUtc: Long, endUtc: Long): List<ProgramEntity> =
+        withContext(Dispatchers.IO) {
+            val keys = EpgMatch.candidates(channel.tvgId, channel.tvgName, channel.name, channel.epgKey)
+            if (keys.isEmpty()) return@withContext emptyList()
+            db.programs().window(channel.playlistId, keys, startUtc, endUtc)
+                .distinctBy { it.startUtc to it.title }
+                .sortedBy { it.startUtc }
+        }
+
     fun upcoming(channel: ChannelEntity) =
         db.programs().upcomingAny(
             channel.playlistId,

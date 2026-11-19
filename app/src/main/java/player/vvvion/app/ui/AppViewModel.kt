@@ -529,6 +529,16 @@ class AppViewModel(
         library.channel(current.id)?.let { playback.select(it) }
     }
 
+    suspend fun loadGuideChannels(): List<ChannelEntity> {
+        val id = selectedPlaylistId.value
+        if (id < 0) return emptyList()
+        val excluded = HiddenGroups.titles(id, settings.value.hiddenGroups)
+        return library.head(id, "", 400, excluded)
+    }
+
+    suspend fun loadProgramsForDay(channel: ChannelEntity, startUtc: Long, endUtc: Long): List<ProgramEntity> =
+        epgRepo.programsForDay(channel, startUtc, endUtc)
+
     suspend fun loadGuideRows(): List<GuideRow> {
         val id = selectedPlaylistId.value
         if (id < 0) return emptyList()
