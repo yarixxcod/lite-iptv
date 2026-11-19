@@ -84,6 +84,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import player.vvvion.app.BuildConfig
 import player.vvvion.app.R
+import kotlinx.coroutines.delay
 import player.vvvion.app.data.db.ChannelEntity
 import player.vvvion.app.data.db.PlaylistEntity
 import player.vvvion.app.data.prefs.AppSettings
@@ -425,7 +426,7 @@ private fun GroupColumn(
         item {
             GroupCard(stringResource(R.string.all_groups), selected.isEmpty(), false, television, { onSelect("") }, null)
         }
-        items(rows, key = { it.title }) { row ->
+        items(rows, key = { it.title }, contentType = { "group" }) { row ->
             val isLocked = lockKey(playlistId, row.title) in locked
             GroupCard(
                 title = "${row.title}  ${row.count}",
@@ -515,7 +516,7 @@ private fun ChannelColumn(
         }
         if (!favorites && recent.isNotEmpty()) {
             LazyRow(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(recent, key = { it.playlistId.toString() + it.streamUrl }) { item ->
+                items(recent, key = { it.playlistId.toString() + it.streamUrl }, contentType = { "recent" }) { item ->
                     TextButton(onClick = { vm.openHistory(item.channelId) }) { Text(item.channelName, maxLines = 1) }
                 }
             }
@@ -531,11 +532,9 @@ private fun ChannelColumn(
             items(
                 count = paging.itemCount,
                 key = { index -> paging.peek(index)?.id?.let { "c$it#$index" } ?: "p$index" },
+                contentType = { "channel" },
             ) { index ->
                 val channel = paging[index] ?: return@items
-                val programs = epgNow[channel.epgKey].orEmpty()
-                val now = programs.firstOrNull { it.startUtc <= System.currentTimeMillis() && it.stopUtc > System.currentTimeMillis() }
-                    ?: programs.firstOrNull { it.stopUtc > System.currentTimeMillis() }
                 val itemFocus = remember(channel.id) { FocusRequester() }
                 LaunchedEffect(channel.id, restoreId, restoredFocus) {
                     if (!restoredFocus && restoreId == channel.id) {
@@ -559,23 +558,7 @@ private fun ChannelColumn(
                     headlineContent = {
                         Text("${channel.number}   ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
-                    supportingContent = {
-                        Column {
-                            Text(
-                                now?.title ?: stringResource(R.string.no_program),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (now != null) {
-                                LinearProgressIndicator(
-                                    progress = { programProgress(now) },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                )
-                            }
-                        }
-                    },
+                    supportingContent = { ChannelProgramLine(epgNow[channel.epgKey].orEmpty()) },
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (favorites) {
@@ -605,12 +588,42 @@ private fun ChannelColumn(
 }
 
 @Composable
+private fun ChannelProgramLine(programs: List<player.vvvion.app.data.db.ProgramEntity>) {
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(programs) {
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val now = remember(programs, nowMs) {
+        programs.firstOrNull { it.startUtc <= nowMs && it.stopUtc > nowMs }
+            ?: programs.firstOrNull { it.stopUtc > nowMs }
+    }
+    Column {
+        Text(
+            now?.title ?: stringResource(R.string.no_program),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (now != null) {
+            LinearProgressIndicator(
+                progress = { programProgress(now, nowMs) },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ChannelLogo(url: String?) {
     if (url.isNullOrBlank()) {
         Box(Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(InkLine))
     } else {
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current).data(url).size(128).crossfade(false).build(),
+            model = ImageRequest.Builder(LocalContext.current).data(url).size(64).bitmapConfig(Bitmap.Config.RGB_565).crossfade(false).build(),
             contentDescription = null,
             modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(InkLine),
             contentScale = ContentScale.Fit,
@@ -637,7 +650,7 @@ private fun GuideScreen(
         if (rows.isEmpty() && programs.isEmpty()) {
             item { Text(stringResource(R.string.epg_empty), color = Muted) }
         }
-        items(rows, key = { it.channel.id }) { row ->
+        items(rows, key = { it.channel.id }, contentType = { "guide" }) { row ->
             Column {
                 Text(row.channel.name, style = MaterialTheme.typography.titleMedium)
                 ProgramStrip(row.programs)
@@ -646,7 +659,7 @@ private fun GuideScreen(
         item {
             Text(stringResource(R.string.program_details), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
         }
-        items(programs, key = { it.id }) { program ->
+        items(programs, key = { it.id }, contentType = { "program" }) { program ->
             Column(Modifier.padding(vertical = 6.dp)) {
                 Text(clock(program.startUtc) + " – " + clock(program.stopUtc) + "   " + program.title, style = MaterialTheme.typography.titleMedium)
                 program.description?.let { Text(it, color = Muted, maxLines = 4) }
@@ -699,7 +712,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
             )
         }
         item { Text(stringResource(R.string.settings_playlists), style = MaterialTheme.typography.titleLarge) }
-        items(playlists, key = { it.id }) { playlist ->
+        items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(playlist.name, style = MaterialTheme.typography.titleMedium)

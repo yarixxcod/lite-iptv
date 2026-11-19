@@ -119,6 +119,10 @@ class PlayerViewModel(
 
     fun retry() = engine.retry()
 
+    fun nextSource() = engine.nextSource()
+
+    fun hasBackup() = engine.hasBackup()
+
     fun cycleAspect() = engine.cycleAspect()
 
     fun selectAudio(choice: TrackChoice) = engine.selectAudio(choice)

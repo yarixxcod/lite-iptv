@@ -216,7 +216,6 @@ class AppViewModel(
                 epgNow.value = epgRepo.nowAndNext(id, channels)
             } catch (error: Exception) {
                 android.util.Log.e("VVVionEPG", "Failed to load current programmes", error)
-                epgNow.value = emptyMap()
             }
         }
     }
