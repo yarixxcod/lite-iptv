@@ -68,29 +68,29 @@ class ImportServer(
         socket.use { client ->
             client.soTimeout = 20_000
             val input = client.getInputStream()
-            val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8))
-            val request = reader.readLine() ?: return
+            val request = readHttpLine(input) ?: return
             val parts = request.split(" ")
             if (parts.size < 2) return
             val method = parts[0]
             val path = parts[1].substringBefore("?")
             val headers = HashMap<String, String>()
             while (true) {
-                val line = reader.readLine() ?: break
+                val line = readHttpLine(input) ?: break
                 if (line.isEmpty()) break
                 val idx = line.indexOf(':')
                 if (idx > 0) headers[line.substring(0, idx).trim().lowercase()] = line.substring(idx + 1).trim()
             }
             val length = headers["content-length"]?.toIntOrNull() ?: 0
-            val body = if (length in 1..MAX_BODY) {
-                val buf = CharArray(length)
+            if (length > MAX_BODY) return
+            val body = if (length > 0) {
+                val buf = ByteArray(length)
                 var off = 0
                 while (off < length) {
-                    val n = reader.read(buf, off, length - off)
+                    val n = input.read(buf, off, length - off)
                     if (n < 0) break
                     off += n
                 }
-                String(buf, 0, off)
+                String(buf, 0, off, Charsets.UTF_8)
             } else ""
             val expected = "/i/$token"
             val ok = path == expected || path == "$expected/"
@@ -112,6 +112,17 @@ class ImportServer(
                 out.flush()
             }
         }
+    }
+
+    private fun readHttpLine(input: java.io.InputStream): String? {
+        val out = java.io.ByteArrayOutputStream()
+        while (out.size() < 8192) {
+            val byte = input.read()
+            if (byte == -1) return if (out.size() == 0) null else out.toString("UTF-8")
+            if (byte == 10) return out.toString("UTF-8").trimEnd('\\r')
+            out.write(byte)
+        }
+        return null
     }
 
     private fun parseForm(contentType: String, body: String): RemoteImport? {
