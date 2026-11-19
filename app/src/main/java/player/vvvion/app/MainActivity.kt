@@ -127,9 +127,18 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     try {
                         scheduler.ensureAll()
+                    } catch (error: Exception) {
+                        android.util.Log.e("VVVionStartup", "Scheduler initialization failed", error)
+                    }
+                    try {
                         appVm.maybeResume()
+                    } catch (error: Exception) {
+                        android.util.Log.e("VVVionStartup", "Playback resume failed", error)
+                    }
+                    try {
                         appVm.checkForUpdate(quiet = true)
-                    } catch (_: Throwable) {
+                    } catch (error: Exception) {
+                        android.util.Log.e("VVVionStartup", "Update check failed", error)
                     }
                 }
             }
