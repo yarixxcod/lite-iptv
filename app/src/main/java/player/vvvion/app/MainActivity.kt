@@ -33,6 +33,7 @@ import player.vvvion.app.ui.PlayerViewModel
 import player.vvvion.app.ui.VvvionTheme
 import player.vvvion.app.update.UpdateInstaller
 import player.vvvion.app.work.SyncScheduler
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
@@ -63,7 +64,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
-            settingsStore.settings.collect { settings ->
+            settingsStore.settings.catch { }.collect { settings ->
                 backgroundAudio = settings.backgroundAudio
                 applyLanguage(settings.language)
             }
@@ -116,9 +117,12 @@ class MainActivity : AppCompatActivity() {
             booted = true
             window.decorView.post {
                 lifecycleScope.launch {
-                    scheduler.ensureAll()
-                    appVm.maybeResume()
-                    appVm.checkForUpdate(quiet = true)
+                    try {
+                        scheduler.ensureAll()
+                        appVm.maybeResume()
+                        appVm.checkForUpdate(quiet = true)
+                    } catch (_: Throwable) {
+                    }
                 }
             }
         }

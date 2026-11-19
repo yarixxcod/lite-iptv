@@ -13,7 +13,9 @@ import player.vvvion.app.data.prefs.AppSettings
 import player.vvvion.app.data.prefs.SettingsStore
 import player.vvvion.app.data.repo.EpgRepository
 import player.vvvion.app.data.repo.LibraryRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import org.koin.core.context.GlobalContext
 import java.util.concurrent.TimeUnit
 
@@ -53,7 +55,8 @@ class SyncScheduler(
 ) {
     suspend fun ensureAll() {
         val current = settings.settings.first()
-        db.playlists().all().forEach { schedule(it.id, it.updateHours, it.type, current) }
+        val playlists = withContext(Dispatchers.IO) { db.playlists().all() }
+        playlists.forEach { schedule(it.id, it.updateHours, it.type, current) }
     }
 
     fun schedule(playlistId: Long, updateHours: Int, type: String, settings: AppSettings) {

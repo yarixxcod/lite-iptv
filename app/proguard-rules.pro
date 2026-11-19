@@ -41,6 +41,8 @@
 -keep class kotlinx.coroutines.android.HandlerContext { *; }
 -keep class kotlinx.coroutines.android.HandlerDispatcherKt { *; }
 -keep class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
+-keep class * implements kotlinx.coroutines.internal.MainDispatcherFactory { *; }
+-keep class * implements kotlinx.coroutines.CoroutineExceptionHandler { *; }
 -keep class kotlinx.coroutines.CoroutineExceptionHandler { *; }
 
 -keep class * extends androidx.room.RoomDatabase { *; }

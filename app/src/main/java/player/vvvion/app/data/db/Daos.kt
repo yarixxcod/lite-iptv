@@ -13,7 +13,7 @@ interface PlaylistDao {
     fun observe(): Flow<List<PlaylistEntity>>
 
     @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE")
-    fun all(): List<PlaylistEntity>
+    suspend fun all(): List<PlaylistEntity>
 
     @Query("SELECT * FROM playlists WHERE id = :id")
     fun get(id: Long): PlaylistEntity?
