@@ -102,9 +102,8 @@ class EpgRepository(
                     for (program in programs) {
                         val key = EpgMatch.norm(program.channelId)
                         if (key.isEmpty()) continue
-                        aliases.putIfAbsent(key, key)
-                        val loose = EpgMatch.loose(program.channelId)
-                        if (loose.isNotEmpty()) aliases.putIfAbsent(loose, key)
+                        EpgMatch.putAlias(aliases, key, key)
+                        EpgMatch.putAlias(aliases, EpgMatch.loose(program.channelId), key)
                         batch += ProgramEntity(
                             playlistId = playlistId,
                             channelKey = key,

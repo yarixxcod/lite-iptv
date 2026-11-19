@@ -30,15 +30,17 @@ object EpgMatch {
     fun addAliases(map: MutableMap<String, String>, id: String, names: List<String>) {
         val canonical = norm(id)
         if (canonical.isEmpty()) return
-        map.putIfAbsent(canonical, canonical)
+        putAlias(map, canonical, canonical)
         val looseId = loose(id)
-        if (looseId.isNotEmpty()) map.putIfAbsent(looseId, canonical)
+        putAlias(map, looseId, canonical)
         for (name in names) {
-            val exact = norm(name)
-            if (exact.isNotEmpty()) map.putIfAbsent(exact, canonical)
-            val looseName = loose(name)
-            if (looseName.isNotEmpty()) map.putIfAbsent(looseName, canonical)
+            putAlias(map, norm(name), canonical)
+            putAlias(map, loose(name), canonical)
         }
+    }
+
+    fun putAlias(map: MutableMap<String, String>, key: String, value: String) {
+        if (key.isNotEmpty() && !map.containsKey(key)) map[key] = value
     }
 
     fun bind(tvgId: String?, tvgName: String?, name: String, aliases: Map<String, String>): String {
