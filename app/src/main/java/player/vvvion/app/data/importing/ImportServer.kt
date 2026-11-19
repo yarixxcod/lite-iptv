@@ -6,13 +6,10 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import java.io.BufferedOutputStream
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
-import java.net.URLDecoder
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -68,14 +65,14 @@ class ImportServer(
         socket.use { client ->
             client.soTimeout = 20_000
             val input = client.getInputStream()
-            val request = readHttpLine(input) ?: return
+            val request = ImportForms.readHttpLine(input) ?: return
             val parts = request.split(" ")
             if (parts.size < 2) return
             val method = parts[0]
             val path = parts[1].substringBefore("?")
             val headers = HashMap<String, String>()
             while (true) {
-                val line = readHttpLine(input) ?: break
+                val line = ImportForms.readHttpLine(input) ?: break
                 if (line.isEmpty()) break
                 val idx = line.indexOf(':')
                 if (idx > 0) headers[line.substring(0, idx).trim().lowercase()] = line.substring(idx + 1).trim()
@@ -83,14 +80,7 @@ class ImportServer(
             val length = headers["content-length"]?.toIntOrNull() ?: 0
             if (length > MAX_BODY) return
             val body = if (length > 0) {
-                val buf = ByteArray(length)
-                var off = 0
-                while (off < length) {
-                    val n = input.read(buf, off, length - off)
-                    if (n < 0) break
-                    off += n
-                }
-                String(buf, 0, off, Charsets.UTF_8)
+                String(ImportForms.readExact(input, length), Charsets.UTF_8)
             } else ""
             val expected = "/i/$token"
             val ok = path == expected || path == "$expected/"
@@ -98,7 +88,7 @@ class ImportServer(
                 !ok -> text(404, "Not found")
                 method == "GET" -> text(200, page(), "text/html; charset=utf-8")
                 method == "POST" -> {
-                    val imported = parseForm(headers["content-type"].orEmpty(), body)
+                    val imported = ImportForms.parse(headers["content-type"].orEmpty(), body)
                     if (imported == null) text(400, "Could not read that submission")
                     else {
                         onImport(imported)
@@ -113,70 +103,6 @@ class ImportServer(
             }
         }
     }
-
-    private fun readHttpLine(input: java.io.InputStream): String? {
-        val out = java.io.ByteArrayOutputStream()
-        while (out.size() < 8192) {
-            val byte = input.read()
-            if (byte == -1) return if (out.size() == 0) null else out.toString("UTF-8")
-            if (byte == 10) return out.toString("UTF-8").trimEnd('\r')
-            out.write(byte)
-        }
-        return null
-    }
-
-    private fun parseForm(contentType: String, body: String): RemoteImport? {
-        val fields = if (contentType.startsWith("multipart/")) parseMultipart(contentType, body) else parseUrlEncoded(body)
-        val name = fields["name"].orEmpty().ifBlank { "Phone import" }
-        val kind = fields["kind"].orEmpty()
-        return when (kind) {
-            "xtream" -> {
-                val server = fields["server"]?.trim().orEmpty()
-                if (server.isBlank()) return null
-                RemoteImport(name, "XTREAM", url = server, username = fields["username"], password = fields["password"])
-            }
-            "file" -> {
-                val text = fields["file"]?.trim().orEmpty()
-                if (!text.contains("#EXTINF", true) && !text.contains("#EXTM3U", true)) return null
-                RemoteImport(name, "PASTE", body = text)
-            }
-            else -> {
-                val url = fields["url"]?.trim().orEmpty()
-                if (url.startsWith("#EXTM3U") || url.contains("#EXTINF")) {
-                    RemoteImport(name, "PASTE", body = url)
-                } else if (url.startsWith("http://") || url.startsWith("https://")) {
-                    RemoteImport(name, "URL", url = url)
-                } else null
-            }
-        }
-    }
-
-    private fun parseUrlEncoded(body: String): Map<String, String> =
-        body.split('&').mapNotNull { part ->
-            val idx = part.indexOf('=')
-            if (idx <= 0) null
-            else decode(part.substring(0, idx)) to decode(part.substring(idx + 1))
-        }.toMap()
-
-    private fun parseMultipart(contentType: String, body: String): Map<String, String> {
-        val boundary = contentType.substringAfter("boundary=", "").trim().trim('"')
-        if (boundary.isEmpty()) return emptyMap()
-        val chunks = body.split("--$boundary")
-        val out = HashMap<String, String>()
-        for (chunk in chunks) {
-            val trimmed = chunk.trim('\r', '\n', '-', ' ')
-            if (trimmed.isEmpty()) continue
-            val headerEnd = trimmed.indexOf("\r\n\r\n").takeIf { it >= 0 } ?: trimmed.indexOf("\n\n")
-            if (headerEnd < 0) continue
-            val headers = trimmed.substring(0, headerEnd)
-            val content = trimmed.substring(headerEnd).trimStart('\r', '\n').trimEnd('\r', '\n', '-')
-            val name = headers.substringAfter("name=\"", "").substringBefore("\"")
-            if (name.isNotEmpty()) out[name] = content
-        }
-        return out
-    }
-
-    private fun decode(value: String): String = URLDecoder.decode(value, Charsets.UTF_8.name())
 
     private fun text(code: Int, body: String, type: String = "text/plain; charset=utf-8"): ByteArray {
         val bytes = body.toByteArray()

@@ -121,4 +121,9 @@
     <string name="update_install_permission">Allow this app to install updates, then try again</string>
     <string name="update_panel">Upload builds: cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/</string>
     <string name="press_ok_to_edit">Press OK to edit</string>
+    <string name="url_invalid_scheme">The playlist address must start with http:// or https://. Check for an extra character before http.</string>
+    <string name="url_invalid_empty">Enter a playlist URL.</string>
+    <string name="playlist_added">Playlist added</string>
+    <string name="playlist_updated">Playlist updated</string>
+    <string name="phone_import_ok">Playlist received from the phone</string>
 </resources>

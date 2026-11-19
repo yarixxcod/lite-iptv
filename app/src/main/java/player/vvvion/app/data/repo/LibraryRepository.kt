@@ -9,6 +9,7 @@ import player.vvvion.app.data.db.FavoriteEntity
 import player.vvvion.app.data.db.HiddenEntity
 import player.vvvion.app.data.db.HistoryEntity
 import player.vvvion.app.data.db.PlaylistEntity
+import player.vvvion.app.data.importing.PlaylistUrls
 import player.vvvion.app.data.net.HttpClients
 import player.vvvion.app.data.net.downloadToFile
 import player.vvvion.app.data.net.fetchXtreamCategories
@@ -105,7 +106,7 @@ class LibraryRepository(
                 PlaylistEntity(
                     name = name,
                     type = draft.type,
-                    url = draft.url?.trim(),
+                    url = draft.url?.let { PlaylistUrls.sanitize(it) }?.ifBlank { null },
                     fileUri = draft.fileUri,
                     username = draft.username?.trim(),
                     password = draft.password,
@@ -125,7 +126,7 @@ class LibraryRepository(
             db.playlists().updateMeta(
                 id = draft.id,
                 name = name,
-                url = draft.url?.trim(),
+                url = draft.url?.let { PlaylistUrls.sanitize(it) }?.ifBlank { null },
                 fileUri = draft.fileUri,
                 username = draft.username?.trim(),
                 password = draft.password,
@@ -235,7 +236,10 @@ class LibraryRepository(
     }
 
     private fun syncUrl(playlist: PlaylistEntity) {
-        val url = playlist.url?.takeIf { it.isNotBlank() } ?: error("Playlist URL is empty")
+        val url = when (val check = PlaylistUrls.validateHttpUrl(playlist.url)) {
+            is PlaylistUrls.Check.Ok -> check.url
+            is PlaylistUrls.Check.Invalid -> error(PlaylistUrls.errorMessage(check.reason))
+        }
         val dest = File(context.cacheDir, "playlist-${playlist.id}.m3u")
         val remote = downloadToFile(
             http.playlist, url, dest, playlist.userAgent, playlist.playlistEtag, playlist.playlistLastModified,

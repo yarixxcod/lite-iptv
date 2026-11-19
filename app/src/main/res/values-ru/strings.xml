@@ -121,4 +121,9 @@
     <string name="update_install_permission">Разрешите установку обновлений и повторите</string>
     <string name="update_panel">Загрузка сборок: cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/</string>
     <string name="press_ok_to_edit">Нажмите OK, чтобы изменить</string>
+    <string name="url_invalid_scheme">Адрес плейлиста должен начинаться с http:// или https://. Проверьте, нет ли лишнего символа перед http.</string>
+    <string name="url_invalid_empty">Укажите адрес плейлиста.</string>
+    <string name="playlist_added">Плейлист добавлен</string>
+    <string name="playlist_updated">Плейлист обновлён</string>
+    <string name="phone_import_ok">Плейлист получен с телефона</string>
 </resources>

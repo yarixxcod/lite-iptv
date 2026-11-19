@@ -354,6 +354,11 @@ fun HomeScreen(
             "update_none" -> stringResource(R.string.update_none)
             "update_failed" -> stringResource(R.string.update_failed)
             "install_permission" -> stringResource(R.string.update_install_permission)
+            "url_invalid_scheme" -> stringResource(R.string.url_invalid_scheme)
+            "url_invalid_empty" -> stringResource(R.string.url_invalid_empty)
+            "playlist_added" -> stringResource(R.string.playlist_added)
+            "playlist_updated" -> stringResource(R.string.playlist_updated)
+            "phone_import_ok" -> stringResource(R.string.phone_import_ok)
             else -> code
         }
         Text(

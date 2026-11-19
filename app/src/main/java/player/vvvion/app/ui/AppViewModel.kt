@@ -12,6 +12,7 @@ import player.vvvion.app.data.db.HistoryEntity
 import player.vvvion.app.data.db.PlaylistEntity
 import player.vvvion.app.data.db.ProgramEntity
 import player.vvvion.app.data.importing.ImportServer
+import player.vvvion.app.data.importing.PlaylistUrls
 import player.vvvion.app.data.importing.qrBitmap
 import player.vvvion.app.data.prefs.AppSettings
 import player.vvvion.app.data.prefs.SettingsStore
@@ -233,26 +234,39 @@ class AppViewModel(
         stopPhoneLink()
     }
 
-    fun save(draft: PlaylistDraft) {
-        val source = draft.url?.trim().orEmpty()
-        if (draft.type == LibraryRepository.TYPE_URL && !source.startsWith("http://", true) && !source.startsWith("https://", true)) {
-            message.value = "Неверный адрес плейлиста. URL должен начинаться с http:// или https://. Проверьте, нет ли лишнего символа перед http."
-            return
+    fun save(draft: PlaylistDraft, fromPhone: Boolean = false) {
+        val prepared = if (draft.type == LibraryRepository.TYPE_URL) {
+            when (val check = PlaylistUrls.validateHttpUrl(draft.url)) {
+                is PlaylistUrls.Check.Invalid -> {
+                    message.value = if (check.reason == PlaylistUrls.Reason.EMPTY) "url_invalid_empty" else "url_invalid_scheme"
+                    return
+                }
+                is PlaylistUrls.Check.Ok -> draft.copy(url = check.url)
+            }
+        } else if (draft.type == LibraryRepository.TYPE_XTREAM) {
+            draft.copy(url = PlaylistUrls.sanitize(draft.url).ifBlank { null })
+        } else {
+            draft
         }
         viewModelScope.launch {
             busy.value = true
             message.value = null
             try {
-                val id = library.savePlaylist(draft)
+                val id = library.savePlaylist(prepared)
                 selectedPlaylistId.value = id
                 editorOpen.value = false
                 stopPhoneLink()
                 val saved = library.playlist(id)
                 if (saved != null) scheduler.schedule(saved.id, saved.updateHours, saved.type, settingsStore.settings.first())
-                if (draft.type != LibraryRepository.TYPE_PASTE || !draft.pastedText.isNullOrBlank() || draft.id == 0L) {
+                if (prepared.type != LibraryRepository.TYPE_PASTE || !prepared.pastedText.isNullOrBlank() || prepared.id == 0L) {
                     library.syncPlaylist(id)
                     epgRepo.sync(id)
                     reloadPlaying(id)
+                }
+                message.value = when {
+                    fromPhone -> "phone_import_ok"
+                    prepared.id == 0L -> "playlist_added"
+                    else -> "playlist_updated"
                 }
             } catch (t: Throwable) {
                 message.value = t.message ?: t.javaClass.simpleName
@@ -272,10 +286,15 @@ class AppViewModel(
             message.value = "clipboard"
             return
         }
-        if (trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) {
-            save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_URL, url = trimmed))
-        } else {
-            save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
+        when (val check = PlaylistUrls.validateHttpUrl(trimmed)) {
+            is PlaylistUrls.Check.Ok -> save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_URL, url = check.url))
+            is PlaylistUrls.Check.Invalid -> if (trimmed.contains("#EXTM3U") || trimmed.contains("#EXTINF")) {
+                save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
+            } else if (check.reason == PlaylistUrls.Reason.LEADING_JUNK || trimmed.contains("http", true)) {
+                message.value = "url_invalid_scheme"
+            } else {
+                save(PlaylistDraft(name = "Clipboard", type = LibraryRepository.TYPE_PASTE, pastedText = trimmed))
+            }
         }
     }
 
@@ -319,7 +338,7 @@ class AppViewModel(
                 "PASTE" -> PlaylistDraft(name = remote.name, type = LibraryRepository.TYPE_PASTE, pastedText = remote.body)
                 else -> PlaylistDraft(name = remote.name, type = LibraryRepository.TYPE_URL, url = remote.url)
             }
-            save(draft)
+            save(draft, fromPhone = true)
         }
         server.start()
         importServer = server
