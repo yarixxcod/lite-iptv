@@ -88,6 +88,6 @@ class UpdateRepository(
     companion object {
         const val DEFAULT_MANIFEST =
             "https://github.com/yarixxcod/lite-iptv/releases/latest/download/latest.json"
-        const val PANEL_URL = "https://yarixxcod.github.io/lite-iptv/"
+        const val PANEL_URL = "https://cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/index.html"
     }
 }

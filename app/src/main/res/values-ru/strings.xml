@@ -119,5 +119,5 @@
     <string name="update_version">Версия %1$s</string>
     <string name="update_source">Адрес манифеста (пусто — GitHub)</string>
     <string name="update_install_permission">Разрешите установку обновлений и повторите</string>
-    <string name="update_panel">Загрузка сборок: yarixxcod.github.io/lite-iptv</string>
+    <string name="update_panel">Загрузка сборок: cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/</string>
 </resources>

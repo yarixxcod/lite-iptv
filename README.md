@@ -26,13 +26,13 @@ Stalker / MAG portals are not implemented.
 
 The app compares its `versionCode` with [latest.json](https://github.com/yarixxcod/lite-iptv/releases/latest/download/latest.json). A newer build is offered as a banner, then installed with the system package installer. The device must allow installs from this app.
 
-Upload a new APK from the panel: [yarixxcod.github.io/lite-iptv](https://yarixxcod.github.io/lite-iptv/). The page asks for a GitHub token with contents write on this repo, stores it only in that browser, and publishes:
+Upload a new APK from the panel: [cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/](https://cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/index.html). The page asks for a GitHub token with contents write on this repo, stores it only in that browser, and publishes:
 
 - `VvvionIPTV.apk` — the file the app downloads
 - `VvvionIPTV-<version>.apk` — the same file with a versioned name
 - `latest.json` — `versionCode`, `versionName`, `apkUrl`, `notes`
 
-A custom manifest URL can be set in the app settings. It must be HTTPS JSON with the same fields. An empty URL uses the GitHub release above.
+A custom manifest URL can be set in the app settings. It must be HTTPS JSON with the same fields. An empty URL uses the GitHub release above. GitHub Pages is optional: enable it in the repository settings and run the Panel workflow if you want `https://yarixxcod.github.io/lite-iptv/` instead of the jsDelivr address.
 
 Tagging `v*` still builds a release APK in GitHub Actions and writes the same `latest.json`.
 
