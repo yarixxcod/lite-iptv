@@ -81,6 +81,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -215,6 +216,7 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    HomeClock()
                     IconButton(onClick = { vm.openEditor(null) }, modifier = Modifier.tvControl()) {
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_playlist))
                     }
@@ -338,7 +340,29 @@ fun HomeScreen(
                                 val programs = guide
                                 val now = currentProgram(programs)
                                 Text(preview?.name ?: stringResource(R.string.no_program), style = MaterialTheme.typography.titleLarge)
-                                Text(now?.let { stringResource(R.string.now) + "  " + it.title } ?: stringResource(R.string.no_program), color = Muted)
+                                Text(
+                                    now?.let { stringResource(R.string.now) + "  " + clock(it.startUtc) + "  " + it.title }
+                                        ?: stringResource(R.string.no_program_short),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (now != null) {
+                                    LinearProgressIndicator(
+                                        progress = { programProgress(now) },
+                                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    )
+                                }
+                                programs.firstOrNull { item -> now == null || item.startUtc >= now.stopUtc || (item.id != now.id && item.startUtc > now.startUtc) }?.let { upcoming ->
+                                    Text(
+                                        stringResource(R.string.next) + "  " + clock(upcoming.startUtc) + "  " + upcoming.title,
+                                        color = Muted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                                 now?.description?.let { Text(it, maxLines = 3, color = Muted, modifier = Modifier.padding(top = 6.dp)) }
                             }
                         }
@@ -690,6 +714,11 @@ private fun ChannelProgramLine(programs: List<player.vvvion.app.data.db.ProgramE
         programs.firstOrNull { it.startUtc <= nowMs && it.stopUtc > nowMs }
             ?: programs.firstOrNull { it.stopUtc > nowMs }
     }
+    val upcoming = remember(programs, now, nowMs) {
+        now?.let { current ->
+            programs.firstOrNull { it.startUtc >= current.stopUtc || (it.id != current.id && it.startUtc > current.startUtc) }
+        } ?: programs.firstOrNull { it.startUtc > nowMs }
+    }
     Column {
         Text(
             now?.title ?: stringResource(R.string.no_program_short),
@@ -699,9 +728,18 @@ private fun ChannelProgramLine(programs: List<player.vvvion.app.data.db.ProgramE
         if (now != null) {
             LinearProgressIndicator(
                 progress = { programProgress(now, nowMs) },
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
+        if (upcoming != null) {
+            Text(
+                stringResource(R.string.next) + "  " + clock(upcoming.startUtc) + "  " + upcoming.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                color = Muted,
             )
         }
     }
@@ -915,4 +953,23 @@ private fun HideGroupDialog(title: String, onDismiss: () -> Unit, onConfirm: () 
             }
         },
     )
+}
+
+
+@Composable
+private fun HomeClock() {
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            delay(15_000)
+        }
+    }
+    val locale = LocalLocale.current.platformLocale
+    val time = remember(nowMs, locale) { java.text.SimpleDateFormat("HH:mm", locale).format(java.util.Date(nowMs)) }
+    val date = remember(nowMs, locale) { java.text.SimpleDateFormat("EEE, d MMM", locale).format(java.util.Date(nowMs)) }
+    Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 12.dp)) {
+        Text(time, style = MaterialTheme.typography.titleLarge)
+        Text(date, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }

@@ -75,7 +75,7 @@ fun Modifier.tvFocusable(
             focused = now
         }
         .graphicsLayer {
-            val scale = if (focused) 1.03f else 1f
+            val scale = if (focused) 1.05f else 1f
             scaleX = scale
             scaleY = scale
         }
