@@ -20,6 +20,7 @@ import player.vvvion.app.data.prefs.hashPin
 import player.vvvion.app.data.prefs.lockKey
 import player.vvvion.app.data.repo.ChannelSort
 import player.vvvion.app.data.repo.EpgRepository
+import player.vvvion.app.data.repo.EpgStatus
 import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.PlaylistDraft
 import player.vvvion.app.domain.BufferProfile
@@ -72,6 +73,7 @@ class AppViewModel(
     val qrPng = MutableStateFlow<android.graphics.Bitmap?>(null)
     val pinGroup = MutableStateFlow<String?>(null)
     val epgNow = MutableStateFlow<Map<String, List<ProgramEntity>>>(emptyMap())
+    val epgStatus = MutableStateFlow(EpgStatus())
     val lastListChannelId = playback.lastListChannelId
     val favoriteUrls = selectedPlaylistId.flatMapLatest { id ->
         if (id < 0) flowOf(emptySet()) else library.observeFavoriteUrls(id).map { it.toSet() }
@@ -119,6 +121,9 @@ class AppViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
+        viewModelScope.launch {
+            selectedPlaylistId.collect { id -> if (id >= 0) refreshEpgStatus(id) }
+        }
         viewModelScope.launch {
             playlists.collect { list ->
                 if (list.isEmpty()) return@collect
@@ -262,6 +267,7 @@ class AppViewModel(
                     library.syncPlaylist(id)
                     epgRepo.sync(id)
                     reloadPlaying(id)
+                    refreshEpgStatus(id)
                 }
                 message.value = when {
                     fromPhone -> "phone_import_ok"
@@ -315,7 +321,7 @@ class AppViewModel(
                 library.syncPlaylist(id)
                 epgRepo.sync(id, force = true)
                 reloadPlaying(id)
-                epgNow.value = emptyMap()
+                refreshEpgStatus(id)
             } catch (t: Throwable) {
                 message.value = t.message ?: t.javaClass.simpleName
             } finally {
@@ -372,6 +378,7 @@ class AppViewModel(
                 }
                 settingsStore.update { it.copy(epgMatcher = 2) }
                 reloadPlaying(selectedPlaylistId.value)
+                refreshEpgStatus(selectedPlaylistId.value)
             }
         }
     }
@@ -399,6 +406,16 @@ class AppViewModel(
     fun clearCache() {
         library.clearCaches()
         message.value = "cache"
+    }
+
+    fun refreshEpgStatus(id: Long = selectedPlaylistId.value) {
+        if (id < 0) {
+            epgStatus.value = EpgStatus()
+            return
+        }
+        viewModelScope.launch {
+            epgStatus.value = runCatching { epgRepo.status(id) }.getOrElse { EpgStatus(lastError = it.message) }
+        }
     }
 
     fun setTextFocused(value: Boolean) {

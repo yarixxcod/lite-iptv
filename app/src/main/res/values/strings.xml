@@ -126,4 +126,11 @@
     <string name="playlist_added">Playlist added</string>
     <string name="playlist_updated">Playlist updated</string>
     <string name="phone_import_ok">Playlist received from the phone</string>
+    <string name="epg_status_title">Guide status</string>
+    <string name="epg_status_never">Guide has not been downloaded yet.</string>
+    <string name="epg_status_updated">Last guide update: %1$s</string>
+    <string name="epg_status_programs">Programmes stored: %1$d</string>
+    <string name="epg_status_matched">Channels matched: %1$d of %2$d</string>
+    <string name="epg_status_error">Guide error: %1$s</string>
+    <string name="epg_status_url">Guide URL: %1$s</string>
 </resources>

@@ -126,4 +126,11 @@
     <string name="playlist_added">Плейлист добавлен</string>
     <string name="playlist_updated">Плейлист обновлён</string>
     <string name="phone_import_ok">Плейлист получен с телефона</string>
+    <string name="epg_status_title">Состояние программы</string>
+    <string name="epg_status_never">Программа ещё не загружалась.</string>
+    <string name="epg_status_updated">Обновлена: %1$s</string>
+    <string name="epg_status_programs">Передач в базе: %1$d</string>
+    <string name="epg_status_matched">Сопоставлено каналов: %1$d из %2$d</string>
+    <string name="epg_status_error">Ошибка программы: %1$s</string>
+    <string name="epg_status_url">Адрес программы: %1$s</string>
 </resources>

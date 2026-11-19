@@ -82,6 +82,17 @@ interface ChannelDao {
     @Query("SELECT COUNT(*) FROM channels WHERE playlistId = :playlistId")
     fun count(playlistId: Long): Int
 
+    @Query(
+        """
+        SELECT COUNT(*) FROM channels c
+        WHERE c.playlistId = :playlistId AND EXISTS (
+            SELECT 1 FROM programs p
+            WHERE p.playlistId = c.playlistId AND p.channelKey = c.epgKey
+        )
+        """,
+    )
+    fun matchedWithEpg(playlistId: Long): Int
+
     @Query("SELECT * FROM channels WHERE id = :id")
     suspend fun byId(id: Long): ChannelEntity?
 
@@ -246,6 +257,12 @@ interface HistoryDao {
 interface ProgramDao {
     @Query("DELETE FROM programs WHERE playlistId = :playlistId")
     fun deletePlaylist(playlistId: Long)
+
+    @Query("UPDATE programs SET playlistId = :toId WHERE playlistId = :fromId")
+    fun reassignPlaylist(fromId: Long, toId: Long)
+
+    @Query("SELECT COUNT(*) FROM programs WHERE playlistId = :playlistId")
+    fun count(playlistId: Long): Int
 
     @Insert
     fun insertAll(items: List<ProgramEntity>)

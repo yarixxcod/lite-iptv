@@ -121,6 +121,7 @@ fun HomeScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
     val epgNow by vm.epgNow.collectAsStateWithLifecycle()
+    val epgStatus by vm.epgStatus.collectAsStateWithLifecycle()
     val favoriteUrls by vm.favoriteUrls.collectAsStateWithLifecycle()
     val epgSyncStamp = playlists.firstOrNull { it.id == playlistId }?.lastSyncAt
     val typed by vm.typedNumber.collectAsStateWithLifecycle()
@@ -258,6 +259,7 @@ fun HomeScreen(
                         vm = vm,
                         settings = settings,
                         playlists = playlists,
+                        epgStatus = epgStatus,
                         modifier = Modifier.weight(1f),
                     )
                     HomeTab.GUIDE -> GuideScreen(
@@ -706,7 +708,7 @@ private fun ProgramStrip(programs: List<player.vvvion.app.data.db.ProgramEntity>
 }
 
 @Composable
-fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<PlaylistEntity>, modifier: Modifier = Modifier) {
+fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<PlaylistEntity>, epgStatus: player.vvvion.app.data.repo.EpgStatus, modifier: Modifier = Modifier) {
     LazyColumn(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineMedium)
@@ -715,6 +717,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
             Button(onClick = { vm.openEditor(null) }, modifier = Modifier.tvControl().padding(top = 8.dp)) { Text(stringResource(R.string.add_playlist)) }
             Button(onClick = { vm.checkForUpdate(false) }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.update_check)) }
         }
+        item { EpgStatusCard(epgStatus) }
         item {
             TvTextField(
                 value = settings.updateManifestUrl,
@@ -951,3 +954,21 @@ private fun EditorScreen(
     }
 }
 
+
+
+@Composable
+private fun EpgStatusCard(status: player.vvvion.app.data.repo.EpgStatus) {
+    val updated = status.lastSyncAt?.let { clock(it) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(stringResource(R.string.epg_status_title), style = MaterialTheme.typography.titleLarge)
+        if (updated == null && status.programs == 0) {
+            Text(stringResource(R.string.epg_status_never), color = Muted)
+        } else if (updated != null) {
+            Text(stringResource(R.string.epg_status_updated, updated))
+        }
+        Text(stringResource(R.string.epg_status_programs, status.programs))
+        Text(stringResource(R.string.epg_status_matched, status.matchedChannels, status.totalChannels))
+        status.epgUrl?.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.epg_status_url, it), color = Muted, maxLines = 2) }
+        status.lastError?.let { Text(stringResource(R.string.epg_status_error, it), color = MaterialTheme.colorScheme.error) }
+    }
+}

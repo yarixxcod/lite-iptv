@@ -9,10 +9,20 @@ import player.vvvion.app.data.net.downloadToFile
 import player.vvvion.app.data.net.openMaybeCompressed
 import player.vvvion.app.data.parse.XmltvParser
 import player.vvvion.app.domain.EpgMatch
+import player.vvvion.app.domain.EpgSync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.File
+
+data class EpgStatus(
+    val lastSyncAt: Long? = null,
+    val programs: Int = 0,
+    val matchedChannels: Int = 0,
+    val totalChannels: Int = 0,
+    val lastError: String? = null,
+    val epgUrl: String? = null,
+)
 
 class EpgRepository(
     private val context: Context,
@@ -44,6 +54,18 @@ class EpgRepository(
         if (lastError != null) throw lastError
     }
 
+    suspend fun status(playlistId: Long): EpgStatus = withContext(Dispatchers.IO) {
+        val playlist = db.playlists().get(playlistId) ?: return@withContext EpgStatus()
+        EpgStatus(
+            lastSyncAt = playlist.lastSyncAt,
+            programs = db.programs().count(playlistId),
+            matchedChannels = db.channels().matchedWithEpg(playlistId),
+            totalChannels = db.channels().count(playlistId),
+            lastError = playlist.lastError,
+            epgUrl = playlist.epgUrl,
+        )
+    }
+
     private fun syncUrl(
         playlistId: Long,
         userAgent: String?,
@@ -60,13 +82,15 @@ class EpgRepository(
             db.playlists().updateEpgStatus(playlistId, url, etag, lastModified, System.currentTimeMillis(), t.message)
             throw t
         }
-        if (remote.notModified) {
+        if (remote.notModified && db.programs().count(playlistId) > 0) {
             db.playlists().updateEpgStatus(playlistId, url, remote.etag, remote.lastModified, System.currentTimeMillis(), null)
             return 1
         }
         val now = System.currentTimeMillis()
         val windowStart = now - 6 * 60 * 60 * 1000L
         val windowEnd = now + 48 * 60 * 60 * 1000L
+        val stagingId = EpgSync.stagingId(playlistId)
+        db.programs().deletePlaylist(stagingId)
         val batch = ArrayList<ProgramEntity>(300)
         var stored = 0
         val aliases = HashMap<String, String>(1024)
@@ -89,40 +113,52 @@ class EpgRepository(
                 head.contains("iso-8859-1", true) -> Charsets.ISO_8859_1
                 else -> Charsets.UTF_8
             }
-            db.runInTransaction {
-                db.programs().deletePlaylist(playlistId)
-                parser.parse(
-                    input = stream,
-                    charset = charset,
-                    windowStart = windowStart,
-                    windowEnd = windowEnd,
-                    offsetMinutes = offsetMinutes,
-                    onChannel = { id, names -> EpgMatch.addAliases(aliases, id, names) },
-                ) { programs ->
-                    for (program in programs) {
-                        val key = EpgMatch.norm(program.channelId)
-                        if (key.isEmpty()) continue
-                        EpgMatch.putAlias(aliases, key, key)
-                        EpgMatch.putAlias(aliases, EpgMatch.loose(program.channelId), key)
-                        batch += ProgramEntity(
-                            playlistId = playlistId,
-                            channelKey = key,
-                            title = program.title,
-                            description = program.description,
-                            startUtc = program.startUtc,
-                            stopUtc = program.stopUtc,
-                        )
-                        if (batch.size >= 300) flush()
-                    }
+            parser.parse(
+                input = stream,
+                charset = charset,
+                windowStart = windowStart,
+                windowEnd = windowEnd,
+                offsetMinutes = offsetMinutes,
+                onChannel = { id, names -> EpgMatch.addAliases(aliases, id, names) },
+            ) { programs ->
+                for (program in programs) {
+                    val key = EpgMatch.norm(program.channelId)
+                    if (key.isEmpty()) continue
+                    EpgMatch.putAlias(aliases, key, key)
+                    EpgMatch.putAlias(aliases, EpgMatch.loose(program.channelId), key)
+                    batch += ProgramEntity(
+                        playlistId = stagingId,
+                        channelKey = key,
+                        title = program.title,
+                        description = program.description,
+                        startUtc = program.startUtc,
+                        stopUtc = program.stopUtc,
+                    )
+                    if (batch.size >= 300) flush()
                 }
-                flush()
-                if (stored > 0) rebind(playlistId, aliases)
             }
+            flush()
+            if (stored > 0) {
+                db.runInTransaction {
+                    db.programs().deletePlaylist(playlistId)
+                    db.programs().reassignPlaylist(stagingId, playlistId)
+                    rebind(playlistId, aliases)
+                }
+                db.playlists().updateEpgStatus(playlistId, url, remote.etag, remote.lastModified, System.currentTimeMillis(), null)
+            } else {
+                db.programs().deletePlaylist(stagingId)
+                db.playlists().updateEpgStatus(
+                    playlistId, fresh?.epgUrl ?: url, etag, lastModified, System.currentTimeMillis(),
+                    "No programmes in the stored window",
+                )
+            }
+        } catch (t: Throwable) {
+            db.programs().deletePlaylist(stagingId)
+            db.playlists().updateEpgStatus(playlistId, fresh?.epgUrl ?: url, etag, lastModified, System.currentTimeMillis(), t.message)
+            throw t
         } finally {
             stream.close()
         }
-        val error = if (stored == 0) "No programmes in the stored window" else null
-        db.playlists().updateEpgStatus(playlistId, url, remote.etag, remote.lastModified, System.currentTimeMillis(), error)
         return stored
     }
 
