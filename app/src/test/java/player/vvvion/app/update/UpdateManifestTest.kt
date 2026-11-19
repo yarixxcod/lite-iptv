@@ -24,4 +24,23 @@ class UpdateManifestTest {
         assertNull(parseUpdateManifest(clear, 1))
         assertNull(parseUpdateManifest("not-json", 1))
     }
+
+    @Test
+    fun fallsBackFromJsdelivrPanel() {
+        val github = UpdateRepository.DEFAULT_MANIFEST
+        assertEquals(github, UpdateRepository.resolveManifest(""))
+        assertEquals(github, UpdateRepository.resolveManifest("  "))
+        assertEquals(
+            github,
+            UpdateRepository.resolveManifest("https://cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/"),
+        )
+        assertEquals(
+            github,
+            UpdateRepository.resolveManifest("https://cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/index.html"),
+        )
+        assertEquals(
+            "https://example.com/latest.json",
+            UpdateRepository.resolveManifest("https://example.com/latest.json"),
+        )
+    }
 }

@@ -18,29 +18,40 @@ class M3uParser {
         var pending: Partial? = null
         var extGroup: String? = null
         var headerSent = false
+        val headerEpg = LinkedHashSet<String>()
+        var catchup: String? = null
+        var catchupDays: Int? = null
         var lineNo = 0
+        fun emitHeader() {
+            if (headerSent) return
+            onHeader(M3uHeader(headerEpg.toList(), catchup, catchupDays))
+            headerSent = true
+        }
         reader.forEachLine { raw ->
             lineNo++
             var line = raw.trim()
             if (lineNo == 1) line = line.removePrefix("\uFEFF")
             if (line.isEmpty()) return@forEachLine
-            when {
-                line.startsWith("#EXTM3U", ignoreCase = true) -> {
+            if (M3uEpg.isHeaderLine(line)) {
+                if (line.startsWith("#EXTM3U", ignoreCase = true)) {
                     val attrs = parseAttributes(line.substring(7))
-                    val epg = listOfNotNull(attrs["url-tvg"], attrs["x-tvg-url"], attrs["tvg-url"])
-                        .flatMap { it.split(',', ';') }
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                    onHeader(M3uHeader(epg, attrs["catchup"], attrs["catchup-days"]?.toIntOrNull()))
-                    headerSent = true
+                    if (catchup == null) catchup = attrs["catchup"]
+                    if (catchupDays == null) catchupDays = attrs["catchup-days"]?.toIntOrNull()
                 }
+                headerEpg += M3uEpg.urlsFromLine(line)
+                return@forEachLine
+            }
+            when {
                 line.startsWith("#EXTGRP:", ignoreCase = true) -> {
                     extGroup = line.substringAfter(":").trim().ifEmpty { null }
                 }
                 line.startsWith("#EXTINF:", ignoreCase = true) -> {
+                    emitHeader()
                     pending = parseExtInf(line.substringAfter(":"), extGroup)
                 }
-                line.startsWith("#") -> Unit
+                line.startsWith("#") -> {
+                    headerEpg += M3uEpg.urlsFromLine(line)
+                }
                 pending != null -> {
                     val channel = pending!!.toChannel(line.trim())
                     pending = null
@@ -55,7 +66,7 @@ class M3uParser {
                 }
             }
         }
-        if (!headerSent) onHeader(M3uHeader(emptyList(), null, null))
+        emitHeader()
         if (batch.isNotEmpty()) onBatch(batch.toList())
         return count
     }

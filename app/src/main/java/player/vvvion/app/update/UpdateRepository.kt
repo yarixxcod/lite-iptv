@@ -16,7 +16,7 @@ class UpdateRepository(
     private val http: HttpClients,
 ) {
     fun check(manifestUrl: String): RemoteUpdate? {
-        val url = manifestUrl.trim().ifEmpty { DEFAULT_MANIFEST }
+        val url = resolveManifest(manifestUrl)
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", DEFAULT_USER_AGENT)
@@ -86,6 +86,16 @@ class UpdateRepository(
     }
 
     companion object {
+        fun resolveManifest(manifestUrl: String): String {
+            val trimmed = manifestUrl.trim()
+            if (trimmed.isEmpty()) return DEFAULT_MANIFEST
+            val lower = trimmed.lowercase()
+            if ("jsdelivr.net" in lower || lower.endsWith("/docs/") || lower.endsWith("/docs/index.html")) {
+                return DEFAULT_MANIFEST
+            }
+            return trimmed
+        }
+
         const val DEFAULT_MANIFEST =
             "https://github.com/yarixxcod/lite-iptv/releases/latest/download/latest.json"
         const val PANEL_URL = "https://cdn.jsdelivr.net/gh/yarixxcod/lite-iptv@main/docs/index.html"

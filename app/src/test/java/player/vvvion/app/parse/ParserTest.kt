@@ -205,4 +205,36 @@ class ParserTest {
         assertEquals("news", ChannelDeduper.epgKey(" News ", "Ignored"))
         assertTrue(EpgMatch.candidates(null, null, "News HD", "name:news hd").contains("name:news hd"))
     }
+
+    @Test
+    fun readsEpgUrlsFromSeparateHeaderLines() {
+        val body = """
+            #EXTM3U
+            #URL-TVG: http://epg.example/one.xml,http://epg.example/two.xml.gz
+            #EXT-X-TVG-URL:https://epg.example/three.xml
+            # Comment x-tvg-url="http://epg.example/four.xml"
+            #EXTINF:-1,News
+            http://stream.example/news.ts
+        """.trimIndent()
+        var urls = emptyList<String>()
+        M3uParser().parse(body.reader().buffered(), onHeader = { urls = it.epgUrls }) {}
+        assertEquals(
+            listOf(
+                "http://epg.example/one.xml",
+                "http://epg.example/two.xml.gz",
+                "https://epg.example/three.xml",
+                "http://epg.example/four.xml",
+            ),
+            urls,
+        )
+    }
+
+    @Test
+    fun extractHandlesCommaSeparatedAttributes() {
+        val urls = player.vvvion.app.data.parse.M3uEpg.urlsFromLine(
+            "#EXTM3U url-tvg=\"http://a/xml,http://b/xml.gz\" tvg-url='http://c/xml'",
+        )
+        assertEquals(listOf("http://a/xml", "http://b/xml.gz", "http://c/xml"), urls)
+        assertTrue(player.vvvion.app.data.parse.M3uEpg.urlsFromLine("#EXTM3U").isEmpty())
+    }
 }

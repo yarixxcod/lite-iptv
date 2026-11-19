@@ -149,4 +149,18 @@
     <string name="hidden_groups_empty">No groups have been removed.</string>
     <string name="hidden_groups_restore">Restore</string>
     <string name="hidden_groups_restore_all">Restore all</string>
+    <string name="epg_no_url">No programme guide URL is set. Add url-tvg to the playlist or enter an XMLTV address below.</string>
+    <string name="epg_refresh">Refresh guide</string>
+    <string name="epg_refresh_ok">Programme guide updated</string>
+    <string name="epg_refresh_empty">The guide downloaded, but no programmes were stored.</string>
+    <string name="epg_url_label">XMLTV URL</string>
+    <string name="no_program_short">No guide</string>
+    <string name="recent_channels">Recent</string>
+    <string name="settings_section_playlists">Playlists</string>
+    <string name="settings_section_epg">Programme guide</string>
+    <string name="settings_section_playback">Playback</string>
+    <string name="settings_section_hidden">Removed groups</string>
+    <string name="settings_section_updates">Updates</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_buffer_auto_hint">Auto grows the buffer after stuttering, for long viewing.</string>
 </resources>

@@ -149,4 +149,18 @@
     <string name="hidden_groups_empty">Удалённых групп нет.</string>
     <string name="hidden_groups_restore">Вернуть</string>
     <string name="hidden_groups_restore_all">Вернуть все</string>
+    <string name="epg_no_url">Адрес программы не указан. Добавьте url-tvg в плейлист или введите XMLTV ниже.</string>
+    <string name="epg_refresh">Обновить программу</string>
+    <string name="epg_refresh_ok">Программа передач обновлена</string>
+    <string name="epg_refresh_empty">Файл загрузился, но передач в окне не оказалось.</string>
+    <string name="epg_url_label">Адрес XMLTV</string>
+    <string name="no_program_short">Без программы</string>
+    <string name="recent_channels">Недавние</string>
+    <string name="settings_section_playlists">Плейлисты</string>
+    <string name="settings_section_epg">Программа передач</string>
+    <string name="settings_section_playback">Воспроизведение</string>
+    <string name="settings_section_hidden">Удалённые группы</string>
+    <string name="settings_section_updates">Обновления</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="settings_buffer_auto_hint">Авто увеличивает буфер после задержек, удобнее для долгого просмотра.</string>
 </resources>

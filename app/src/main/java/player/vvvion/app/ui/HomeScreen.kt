@@ -750,6 +750,8 @@ private fun ProgramStrip(programs: List<player.vvvion.app.data.db.ProgramEntity>
 
 @Composable
 fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<PlaylistEntity>, epgStatus: player.vvvion.app.data.repo.EpgStatus, modifier: Modifier = Modifier) {
+    val playlistId by vm.selectedPlaylistId.collectAsStateWithLifecycle()
+    LaunchedEffect(playlistId) { if (playlistId >= 0) vm.refreshEpgStatus(playlistId) }
     LazyColumn(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineMedium)
@@ -758,7 +760,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
             Button(onClick = { vm.openEditor(null) }, modifier = Modifier.tvControl().padding(top = 8.dp)) { Text(stringResource(R.string.add_playlist)) }
             Button(onClick = { vm.checkForUpdate(false) }, modifier = Modifier.tvControl()) { Text(stringResource(R.string.update_check)) }
         }
-        item { EpgStatusCard(epgStatus) }
+        item { EpgStatusCard(vm, playlists, epgStatus) }
         item { DiagnosticsCard() }
         item { HiddenGroupsCard(vm, settings, playlists) }
         item {
@@ -1000,19 +1002,53 @@ private fun EditorScreen(
 
 
 @Composable
-private fun EpgStatusCard(status: player.vvvion.app.data.repo.EpgStatus) {
-    val updated = status.lastSyncAt?.let { clock(it) }
+private fun EpgStatusCard(
+    vm: AppViewModel,
+    playlists: List<PlaylistEntity>,
+    status: player.vvvion.app.data.repo.EpgStatus,
+) {
+    val playlistId by vm.selectedPlaylistId.collectAsStateWithLifecycle()
+    val playlist = playlists.firstOrNull { it.id == playlistId }
+    var epgUrl by remember(playlistId, playlist?.epgUrl, status.epgUrl) {
+        mutableStateOf(status.epgUrl ?: playlist?.epgUrl.orEmpty())
+    }
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(stringResource(R.string.epg_status_title), style = MaterialTheme.typography.titleLarge)
-        if (updated == null && status.programs == 0) {
+        if (status.programs > 0 && status.lastSyncAt != null) {
+            Text(stringResource(R.string.epg_status_updated, clock(status.lastSyncAt)))
+        } else if (status.epgUrl.isNullOrBlank()) {
+            Text(stringResource(R.string.epg_no_url), color = Muted)
+        } else {
             Text(stringResource(R.string.epg_status_never), color = Muted)
-        } else if (updated != null) {
-            Text(stringResource(R.string.epg_status_updated, updated))
         }
         Text(stringResource(R.string.epg_status_programs, status.programs))
         Text(stringResource(R.string.epg_status_matched, status.matchedChannels, status.totalChannels))
-        status.epgUrl?.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.epg_status_url, it), color = Muted, maxLines = 2) }
-        status.lastError?.let { Text(stringResource(R.string.epg_status_error, it), color = MaterialTheme.colorScheme.error) }
+        if (status.lastError != null && status.lastError != "No EPG URL") {
+            Text(stringResource(R.string.epg_status_error, status.lastError), color = MaterialTheme.colorScheme.error)
+        }
+        if (playlist != null) {
+            TvTextField(
+                value = epgUrl,
+                onValueChange = { epgUrl = it },
+                label = stringResource(R.string.epg_url_label),
+                modifier = Modifier.padding(top = 8.dp),
+                onEditingChange = { focused ->
+                    vm.setTextFocused(focused)
+                    if (!focused) vm.setPlaylistEpgUrl(playlist.id, epgUrl)
+                },
+            )
+            Button(
+                onClick = {
+                    vm.setPlaylistEpgUrl(playlist.id, epgUrl)
+                    vm.refreshEpg(playlist.id)
+                },
+                modifier = Modifier.tvControl().padding(top = 8.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = Accent,
+                    contentColor = AccentInk,
+                ),
+            ) { Text(stringResource(R.string.epg_refresh)) }
+        }
     }
 }
 

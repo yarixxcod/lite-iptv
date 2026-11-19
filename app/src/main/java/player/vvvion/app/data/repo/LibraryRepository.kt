@@ -75,6 +75,10 @@ class LibraryRepository(
 
     suspend fun playlist(id: Long): PlaylistEntity? = withContext(Dispatchers.IO) { db.playlists().get(id) }
 
+    suspend fun setEpgUrl(id: Long, url: String?) = withContext(Dispatchers.IO) {
+        db.playlists().setEpgUrl(id, url?.trim()?.ifBlank { null })
+    }
+
     suspend fun channel(id: Long): ChannelEntity? = db.channels().byId(id)
 
     suspend fun channelByNumber(playlistId: Long, number: Int, excludedGroups: Collection<String> = emptyList()): ChannelEntity? =

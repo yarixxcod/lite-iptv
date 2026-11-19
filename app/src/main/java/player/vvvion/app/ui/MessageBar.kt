@@ -115,6 +115,9 @@ private fun messageText(message: UiMessage): String {
         "group_removed" -> stringResource(R.string.group_removed, message.raw.orEmpty())
         "group_restored" -> stringResource(R.string.group_restored, message.raw.orEmpty())
         "groups_restored" -> stringResource(R.string.groups_restored)
+        "epg_no_url" -> stringResource(R.string.epg_no_url)
+        "epg_refresh_ok" -> stringResource(R.string.epg_refresh_ok)
+        "epg_refresh_empty" -> stringResource(R.string.epg_refresh_empty)
         else -> null
     }
     return mapped ?: message.raw.orEmpty()

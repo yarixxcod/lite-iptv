@@ -405,6 +405,49 @@ class AppViewModel(
         }
     }
 
+    fun setPlaylistEpgUrl(playlistId: Long, raw: String) {
+        if (playlistId < 0) return
+        viewModelScope.launch {
+            val trimmed = raw.trim()
+            val stored = if (trimmed.isEmpty()) null else {
+                when (val check = PlaylistUrls.validateHttpUrl(trimmed)) {
+                    is PlaylistUrls.Check.Ok -> check.url
+                    is PlaylistUrls.Check.Invalid -> {
+                        notify(MessageKind.ERROR, code = if (check.reason == PlaylistUrls.Reason.EMPTY) "url_invalid_empty" else "url_invalid_scheme")
+                        return@launch
+                    }
+                }
+            }
+            library.setEpgUrl(playlistId, stored)
+            refreshEpgStatus(playlistId)
+        }
+    }
+
+    fun refreshEpg(playlistId: Long = selectedPlaylistId.value) {
+        if (playlistId < 0) return
+        viewModelScope.launch {
+            busy.value = true
+            try {
+                val playlist = library.playlist(playlistId)
+                if (playlist?.epgUrl.isNullOrBlank()) {
+                    notify(MessageKind.INFO, code = "epg_no_url")
+                    refreshEpgStatus(playlistId)
+                    return@launch
+                }
+                epgRepo.sync(playlistId, force = true)
+                refreshEpgStatus(playlistId)
+                val status = epgStatus.value
+                if (status.programs > 0) notify(MessageKind.SUCCESS, code = "epg_refresh_ok")
+                else notify(MessageKind.ERROR, code = "epg_refresh_empty", raw = status.lastError)
+            } catch (t: Throwable) {
+                refreshEpgStatus(playlistId)
+                notifyError(t)
+            } finally {
+                busy.value = false
+            }
+        }
+    }
+
     fun refresh() {
         val id = selectedPlaylistId.value
         if (id < 0) return
@@ -462,19 +505,21 @@ class AppViewModel(
             if (current.resumeLast && current.lastChannelId > 0) {
                 library.channel(current.lastChannelId)?.let { playback.openFull(it) }
             }
-            if (current.epgMatcher < 2) {
-                val pending = library.playlistsSnapshot()
-                for (playlist in pending) {
-                    if (playlist.epgUrl.isNullOrBlank()) continue
-                    try {
-                        epgRepo.sync(playlist.id, force = true)
-                    } catch (_: Throwable) {
-                    }
+            val pending = library.playlistsSnapshot()
+            var ranEpg = false
+            for (playlist in pending) {
+                val programs = runCatching { epgRepo.status(playlist.id).programs }.getOrDefault(0)
+                val needs = playlist.epgUrl?.isNotBlank() == true && (current.epgMatcher < 2 || programs == 0)
+                if (!needs) continue
+                ranEpg = true
+                try {
+                    epgRepo.sync(playlist.id, force = true)
+                } catch (_: Throwable) {
                 }
-                settingsStore.update { it.copy(epgMatcher = 2) }
-                reloadPlaying(selectedPlaylistId.value)
-                refreshEpgStatus(selectedPlaylistId.value)
             }
+            if (current.epgMatcher < 2) settingsStore.update { it.copy(epgMatcher = 2) }
+            if (ranEpg) reloadPlaying(selectedPlaylistId.value)
+            refreshEpgStatus(selectedPlaylistId.value)
         }
     }
 

@@ -38,7 +38,17 @@ class EpgRepository(
             .filter { it.isNotEmpty() }
             .map { resolveUrl(playlist.url, it) }
             .distinct()
-        if (urls.isEmpty()) return@withContext
+        if (urls.isEmpty()) {
+            db.playlists().updateEpgStatus(
+                playlistId,
+                playlist.epgUrl,
+                playlist.epgEtag,
+                playlist.epgLastModified,
+                playlist.lastSyncAt,
+                "No EPG URL",
+            )
+            return@withContext
+        }
         if (force) db.playlists().clearEpgValidators(playlistId)
         val etag = if (force) null else playlist.epgEtag
         val modified = if (force) null else playlist.epgLastModified

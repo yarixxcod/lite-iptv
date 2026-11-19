@@ -64,6 +64,9 @@ interface PlaylistDao {
     )
     fun clearEpgValidators(id: Long)
 
+    @Query("UPDATE playlists SET epgUrl = :epgUrl WHERE id = :id")
+    fun setEpgUrl(id: Long, epgUrl: String?)
+
     @Query("DELETE FROM playlists WHERE id = :id")
     fun delete(id: Long)
 }
