@@ -3,6 +3,7 @@
 package player.vvvion.app.ui
 
 import android.graphics.Bitmap
+import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
@@ -70,6 +71,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -93,6 +97,7 @@ import player.vvvion.app.data.repo.ChannelSort
 import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.PlaylistDraft
 import player.vvvion.app.domain.BufferProfile
+import player.vvvion.app.domain.HiddenGroups
 import player.vvvion.app.player.RemoteScope
 import player.vvvion.app.update.RemoteUpdate
 import coil.compose.AsyncImage
@@ -126,6 +131,7 @@ fun HomeScreen(
     val epgSyncStamp = playlists.firstOrNull { it.id == playlistId }?.lastSyncAt
     val typed by vm.typedNumber.collectAsStateWithLifecycle()
     val pinGroup by vm.pinGroup.collectAsStateWithLifecycle()
+    val pendingHideGroup by vm.pendingHideGroup.collectAsStateWithLifecycle()
     val qr by vm.qrPng.collectAsStateWithLifecycle()
     val qrUrl by vm.qrUrl.collectAsStateWithLifecycle()
     val guide by vm.guide.collectAsStateWithLifecycle()
@@ -141,9 +147,9 @@ fun HomeScreen(
     BackHandler(enabled = !medium && compactList && !editor) { compactList = false }
     BackHandler(enabled = editor) { vm.closeEditor() }
 
-    LaunchedEffect(editor, pinGroup, tab) {
+    LaunchedEffect(editor, pinGroup, pendingHideGroup, tab) {
         val scope = when {
-            editor || pinGroup != null -> RemoteScope.UI
+            editor || pinGroup != null || pendingHideGroup != null -> RemoteScope.UI
             tab == HomeTab.SETTINGS || tab == HomeTab.GUIDE -> RemoteScope.UI
             else -> RemoteScope.CHANNELS
         }
@@ -281,6 +287,7 @@ fun HomeScreen(
                                         if (!medium) compactList = true
                                     },
                                     onLock = vm::toggleLock,
+                                    onRemove = vm::requestHideGroup,
                                     television = television,
                                     modifier = if (medium) Modifier.width(if (television) 220.dp else 280.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight(),
                                 )
@@ -339,10 +346,19 @@ fun HomeScreen(
 
     Box(Modifier.fillMaxWidth().align(Alignment.TopCenter)) {
         BusyStrip(busy)
-        MessageBar(banner, onDismiss = vm::dismissBanner)
+        MessageBar(banner, onDismiss = vm::dismissBanner, onUndo = { message ->
+            message.raw?.let(vm::undoHideGroup)
+        })
     }
     pinGroup?.let {
         PinDialog(onDismiss = vm::dismissPin, onSubmit = vm::submitPin)
+    }
+    pendingHideGroup?.let { title ->
+        HideGroupDialog(
+            title = title,
+            onDismiss = vm::dismissHideGroup,
+            onConfirm = vm::confirmHideGroup,
+        )
     }
     } // box
     } // television
@@ -418,13 +434,23 @@ private fun GroupColumn(
     playlistId: Long,
     onSelect: (String) -> Unit,
     onLock: (String) -> Unit,
+    onRemove: (String) -> Unit,
     television: Boolean,
     modifier: Modifier,
 ) {
     val rows = groups.distinctBy { it.title }
+    val allCount = HiddenGroups.visibleCount(rows)
     LazyColumn(modifier.background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(8.dp)) {
         item {
-            GroupCard(stringResource(R.string.all_groups), selected.isEmpty(), false, television, { onSelect("") }, null)
+            GroupCard(
+                title = stringResource(R.string.all_groups) + "  " + allCount,
+                selected = selected.isEmpty(),
+                locked = false,
+                television = television,
+                onClick = { onSelect("") },
+                onLock = null,
+                onRemove = null,
+            )
         }
         items(rows, key = { it.title }, contentType = { "group" }) { row ->
             val isLocked = lockKey(playlistId, row.title) in locked
@@ -435,6 +461,7 @@ private fun GroupColumn(
                 television = television,
                 onClick = { onSelect(row.title) },
                 onLock = { onLock(row.title) },
+                onRemove = { onRemove(row.title) },
             )
         }
     }
@@ -445,13 +472,31 @@ private fun Modifier.tvFocus(enabled: Boolean, onFocused: () -> Unit = {}): Modi
 
 
 @Composable
-private fun GroupCard(title: String, selected: Boolean, locked: Boolean, television: Boolean, onClick: () -> Unit, onLock: (() -> Unit)?) {
+private fun GroupCard(
+    title: String,
+    selected: Boolean,
+    locked: Boolean,
+    television: Boolean,
+    onClick: () -> Unit,
+    onLock: (() -> Unit)?,
+    onRemove: (() -> Unit)?,
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = if (television) 6.dp else 4.dp)
             .tvFocus(television)
-            .combinedClickable(onClick = onClick, onLongClick = onLock),
+            .onKeyEvent { event ->
+                if (onRemove == null || event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val code = event.nativeKeyEvent.keyCode
+                if (code == KeyEvent.KEYCODE_MENU || code == KeyEvent.KEYCODE_INFO) {
+                    onRemove()
+                    true
+                } else {
+                    false
+                }
+            }
+            .combinedClickable(onClick = onClick, onLongClick = onRemove),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -460,10 +505,22 @@ private fun GroupCard(title: String, selected: Boolean, locked: Boolean, televis
     ) {
         ListItem(
             headlineContent = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            trailingContent = if (locked) {
-                { Icon(Icons.Filled.Lock, contentDescription = null) }
-            } else {
-                null
+            trailingContent = when {
+                onLock != null -> {
+                    {
+                        IconButton(onClick = onLock, modifier = Modifier.tvControl()) {
+                            Icon(
+                                Icons.Filled.Lock,
+                                contentDescription = stringResource(R.string.lock_group),
+                                tint = if (locked) MaterialTheme.colorScheme.primary else Muted,
+                            )
+                        }
+                    }
+                }
+                locked -> {
+                    { Icon(Icons.Filled.Lock, contentDescription = null) }
+                }
+                else -> null
             },
             colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         )
@@ -703,6 +760,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, playlists: List<Play
         }
         item { EpgStatusCard(epgStatus) }
         item { DiagnosticsCard() }
+        item { HiddenGroupsCard(vm, settings, playlists) }
         item {
             TvTextField(
                 value = settings.updateManifestUrl,
@@ -976,4 +1034,61 @@ private fun DiagnosticsCard() {
             modifier = Modifier.tvControl().padding(top = 8.dp),
         ) { Text(stringResource(R.string.diagnostics_refresh)) }
     }
+}
+
+@Composable
+private fun HiddenGroupsCard(
+    vm: AppViewModel,
+    settings: AppSettings,
+    playlists: List<PlaylistEntity>,
+) {
+    val selectedId by vm.selectedPlaylistId.collectAsStateWithLifecycle()
+    val names = remember(playlists) { playlists.associate { it.id to it.name } }
+    val entries = HiddenGroups.entries(settings.hiddenGroups)
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(stringResource(R.string.hidden_groups), style = MaterialTheme.typography.titleLarge)
+        if (entries.isEmpty()) {
+            Text(stringResource(R.string.hidden_groups_empty), color = Muted)
+        } else {
+            entries.forEach { (playlistId, title) ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium)
+                        names[playlistId]?.let { Text(it, color = Muted, maxLines = 1) }
+                    }
+                    TextButton(
+                        onClick = { vm.restoreGroup(playlistId, title) },
+                        modifier = Modifier.tvControl(),
+                    ) { Text(stringResource(R.string.hidden_groups_restore)) }
+                }
+            }
+        }
+        if (selectedId >= 0 && HiddenGroups.titles(selectedId, settings.hiddenGroups).isNotEmpty()) {
+            Button(
+                onClick = { vm.restoreAllHiddenGroups(selectedId) },
+                modifier = Modifier.tvControl().padding(top = 8.dp),
+            ) { Text(stringResource(R.string.hidden_groups_restore_all)) }
+        }
+    }
+}
+
+@Composable
+private fun HideGroupDialog(title: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val cancelFocus = remember { FocusRequester() }
+    LaunchedEffect(title) { runCatching { cancelFocus.requestFocus() } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.group_remove_title)) },
+        text = { Text(stringResource(R.string.group_remove_body, title)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.tvControl()) {
+                Text(stringResource(R.string.delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.focusRequester(cancelFocus).tvControl()) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }

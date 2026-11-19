@@ -24,6 +24,7 @@ import player.vvvion.app.R
 fun MessageBar(
     message: UiMessage?,
     onDismiss: (Long) -> Unit,
+    onUndo: (UiMessage) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (message == null) return
@@ -59,6 +60,20 @@ fun MessageBar(
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+        if (message.code == "group_removed") {
+            Text(
+                text = stringResource(R.string.undo),
+                color = foreground,
+                modifier = Modifier
+                    .padding(start = 12.dp)
+                    .tvControl()
+                    .clickable {
+                        onUndo(message)
+                        onDismiss(message.id)
+                    }
+                    .padding(8.dp),
+            )
+        }
         Text(
             text = stringResource(R.string.message_close),
             color = foreground,
@@ -97,6 +112,9 @@ private fun messageText(message: UiMessage): String {
         "playlist_added" -> stringResource(R.string.playlist_added)
         "playlist_updated" -> stringResource(R.string.playlist_updated)
         "phone_import_ok" -> stringResource(R.string.phone_import_ok)
+        "group_removed" -> stringResource(R.string.group_removed, message.raw.orEmpty())
+        "group_restored" -> stringResource(R.string.group_restored, message.raw.orEmpty())
+        "groups_restored" -> stringResource(R.string.groups_restored)
         else -> null
     }
     return mapped ?: message.raw.orEmpty()

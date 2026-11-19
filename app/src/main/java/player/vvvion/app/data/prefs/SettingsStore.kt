@@ -26,6 +26,7 @@ data class AppSettings(
     val amoled: Boolean = false,
     val pinHash: String? = null,
     val lockedGroups: Set<String> = emptySet(),
+    val hiddenGroups: Set<String> = emptySet(),
     val userAgent: String = "",
     val backgroundAudio: Boolean = false,
     val resumeLast: Boolean = true,
@@ -56,6 +57,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.amoled] = next.amoled
             if (next.pinHash == null) prefs.remove(Keys.pin) else prefs[Keys.pin] = next.pinHash
             prefs[Keys.locked] = next.lockedGroups
+            prefs[Keys.hidden] = next.hiddenGroups
             prefs[Keys.userAgent] = next.userAgent
             prefs[Keys.background] = next.backgroundAudio
             prefs[Keys.resume] = next.resumeLast
@@ -77,6 +79,7 @@ class SettingsStore(private val context: Context) {
         amoled = this[Keys.amoled] ?: false,
         pinHash = this[Keys.pin],
         lockedGroups = this[Keys.locked] ?: emptySet(),
+        hiddenGroups = this[Keys.hidden] ?: emptySet(),
         userAgent = this[Keys.userAgent] ?: "",
         backgroundAudio = this[Keys.background] ?: false,
         resumeLast = this[Keys.resume] ?: true,
@@ -97,6 +100,7 @@ class SettingsStore(private val context: Context) {
         val amoled = booleanPreferencesKey("amoled")
         val pin = stringPreferencesKey("pin_hash")
         val locked = stringSetPreferencesKey("locked_groups")
+        val hidden = stringSetPreferencesKey("hidden_groups")
         val userAgent = stringPreferencesKey("user_agent")
         val background = booleanPreferencesKey("background_audio")
         val resume = booleanPreferencesKey("resume_last")

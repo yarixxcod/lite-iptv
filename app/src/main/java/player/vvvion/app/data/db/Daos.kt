@@ -96,24 +96,32 @@ interface ChannelDao {
     @Query("SELECT * FROM channels WHERE id = :id")
     suspend fun byId(id: Long): ChannelEntity?
 
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND number = :number LIMIT 1")
-    suspend fun byNumber(playlistId: Long, number: Int): ChannelEntity?
+    @Query(
+        """
+        SELECT * FROM channels WHERE playlistId = :playlistId AND number = :number
+        AND groupTitle NOT IN (:excludedGroups)
+        LIMIT 1
+        """,
+    )
+    suspend fun byNumber(playlistId: Long, number: Int, excludedGroups: List<String>): ChannelEntity?
 
     @Query(
         """
         SELECT * FROM channels WHERE playlistId = :playlistId AND number > :number
+        AND groupTitle NOT IN (:excludedGroups)
         ORDER BY number ASC LIMIT 1
         """,
     )
-    suspend fun next(playlistId: Long, number: Int): ChannelEntity?
+    suspend fun next(playlistId: Long, number: Int, excludedGroups: List<String>): ChannelEntity?
 
     @Query(
         """
         SELECT * FROM channels WHERE playlistId = :playlistId AND number < :number
+        AND groupTitle NOT IN (:excludedGroups)
         ORDER BY number DESC LIMIT 1
         """,
     )
-    suspend fun prev(playlistId: Long, number: Int): ChannelEntity?
+    suspend fun prev(playlistId: Long, number: Int, excludedGroups: List<String>): ChannelEntity?
 
     @Query(
         """
@@ -136,12 +144,13 @@ interface ChannelDao {
             SELECT 1 FROM hidden h WHERE h.playlistId = c.playlistId AND h.streamUrl = c.streamUrl
         )
         AND (:group = '' OR c.groupTitle = :group)
+        AND c.groupTitle NOT IN (:excludedGroups)
         AND (:query = '' OR c.name LIKE '%' || :query || '%' ESCAPE '\'
              OR IFNULL(c.tvgName, '') LIKE '%' || :query || '%' ESCAPE '\')
         ORDER BY c.number ASC, c.name COLLATE NOCASE ASC
         """,
     )
-    fun pagingByNumber(playlistId: Long, group: String, query: String): PagingSource<Int, ChannelEntity>
+    fun pagingByNumber(playlistId: Long, group: String, query: String, excludedGroups: List<String>): PagingSource<Int, ChannelEntity>
 
     @Query(
         """
@@ -151,12 +160,13 @@ interface ChannelDao {
             SELECT 1 FROM hidden h WHERE h.playlistId = c.playlistId AND h.streamUrl = c.streamUrl
         )
         AND (:group = '' OR c.groupTitle = :group)
+        AND c.groupTitle NOT IN (:excludedGroups)
         AND (:query = '' OR c.name LIKE '%' || :query || '%' ESCAPE '\'
              OR IFNULL(c.tvgName, '') LIKE '%' || :query || '%' ESCAPE '\')
         ORDER BY c.name COLLATE NOCASE ASC, c.number ASC
         """,
     )
-    fun pagingByName(playlistId: Long, group: String, query: String): PagingSource<Int, ChannelEntity>
+    fun pagingByName(playlistId: Long, group: String, query: String, excludedGroups: List<String>): PagingSource<Int, ChannelEntity>
 
     @Query(
         """
@@ -192,10 +202,11 @@ interface ChannelDao {
         """
         SELECT * FROM channels
         WHERE playlistId = :playlistId AND (:group = '' OR groupTitle = :group)
+        AND groupTitle NOT IN (:excludedGroups)
         ORDER BY number ASC LIMIT :limit
         """,
     )
-    suspend fun head(playlistId: Long, group: String, limit: Int): List<ChannelEntity>
+    suspend fun head(playlistId: Long, group: String, limit: Int, excludedGroups: List<String>): List<ChannelEntity>
 
     @Query(
         """

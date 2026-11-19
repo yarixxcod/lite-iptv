@@ -24,6 +24,7 @@ import player.vvvion.app.data.repo.EpgStatus
 import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.PlaylistDraft
 import player.vvvion.app.domain.BufferProfile
+import player.vvvion.app.domain.HiddenGroups
 import player.vvvion.app.player.PlaybackCoordinator
 import player.vvvion.app.player.RemoteScope
 import player.vvvion.app.update.RemoteUpdate
@@ -69,8 +70,13 @@ class AppViewModel(
     private val messageQueue = MessageQueue()
     val banner = MutableStateFlow<UiMessage?>(null)
 
-    fun notify(kind: MessageKind, code: String? = null, raw: String? = null) {
-        banner.value = messageQueue.post(kind, code, raw).current
+    fun notify(kind: MessageKind, code: String? = null, raw: String? = null, dismissMs: Long? = null) {
+        banner.value = messageQueue.post(
+            kind,
+            code,
+            raw,
+            dismissMs ?: MessageQueue.defaultDismiss(kind),
+        ).current
     }
 
     fun dismissBanner(id: Long? = null) {
@@ -86,6 +92,7 @@ class AppViewModel(
     val qrUrl = MutableStateFlow<String?>(null)
     val qrPng = MutableStateFlow<android.graphics.Bitmap?>(null)
     val pinGroup = MutableStateFlow<String?>(null)
+    val pendingHideGroup = MutableStateFlow<String?>(null)
     val epgNow = MutableStateFlow<Map<String, List<ProgramEntity>>>(emptyMap())
     val epgStatus = MutableStateFlow(EpgStatus())
     val lastListChannelId = playback.lastListChannelId
@@ -109,7 +116,10 @@ class AppViewModel(
     val settings = settingsStore.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
     val recent = library.recent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val groups = selectedPlaylistId.flatMapLatest { id ->
-        if (id < 0) flowOf(emptyList()) else library.groups(id)
+        if (id < 0) flowOf(emptyList())
+        else combine(library.groups(id), settings) { rows, prefs ->
+            HiddenGroups.visible(rows, HiddenGroups.titles(id, prefs.hiddenGroups))
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val channels: Flow<PagingData<ChannelEntity>> = combine(
@@ -118,14 +128,28 @@ class AppViewModel(
         query.debounce(300),
         sort,
         tab,
-    ) { id, selectedGroup, q, selectedSort, selectedTab ->
-        ChannelQuery(id, selectedGroup, q, selectedSort, selectedTab == HomeTab.FAVORITES)
+        settings,
+    ) { values ->
+        val id = values[0] as Long
+        val selectedGroup = values[1] as String
+        val q = values[2] as String
+        val selectedSort = values[3] as ChannelSort
+        val selectedTab = values[4] as HomeTab
+        val prefs = values[5] as AppSettings
+        ChannelQuery(
+            playlistId = id,
+            group = selectedGroup,
+            query = q,
+            sort = selectedSort,
+            favorites = selectedTab == HomeTab.FAVORITES,
+            excludedGroups = HiddenGroups.titles(id, prefs.hiddenGroups).toList(),
+        )
     }.flatMapLatest { params ->
         if (params.playlistId < 0) flowOf(PagingData.empty())
         else Pager(
             PagingConfig(pageSize = 40, prefetchDistance = 12, enablePlaceholders = false, maxSize = 240),
         ) {
-            library.paging(params.playlistId, params.group, params.query, params.sort, params.favorites)
+            library.paging(params.playlistId, params.group, params.query, params.sort, params.favorites, params.excludedGroups)
         }.flow
     }.cachedIn(viewModelScope)
 
@@ -199,6 +223,57 @@ class AppViewModel(
                 current.copy(lockedGroups = next)
             }
         }
+    }
+
+    fun requestHideGroup(title: String) {
+        if (!HiddenGroups.canRemove(title)) return
+        pendingHideGroup.value = title
+    }
+
+    fun dismissHideGroup() {
+        pendingHideGroup.value = null
+    }
+
+    fun confirmHideGroup() {
+        val title = pendingHideGroup.value ?: return
+        pendingHideGroup.value = null
+        hideGroup(title)
+    }
+
+    fun hideGroup(title: String) {
+        val id = selectedPlaylistId.value
+        if (id < 0 || !HiddenGroups.canRemove(title)) return
+        viewModelScope.launch {
+            settingsStore.update { current ->
+                current.copy(hiddenGroups = HiddenGroups.hide(current.hiddenGroups, id, title))
+            }
+            if (group.value == title) group.value = ""
+            notify(MessageKind.SUCCESS, code = "group_removed", raw = title, dismissMs = 6_000L)
+        }
+    }
+
+    fun restoreGroup(playlistId: Long, title: String) {
+        if (!HiddenGroups.canRemove(title)) return
+        viewModelScope.launch {
+            settingsStore.update { current ->
+                current.copy(hiddenGroups = HiddenGroups.restore(current.hiddenGroups, playlistId, title))
+            }
+            notify(MessageKind.SUCCESS, code = "group_restored", raw = title)
+        }
+    }
+
+    fun restoreAllHiddenGroups(playlistId: Long = selectedPlaylistId.value) {
+        if (playlistId < 0) return
+        viewModelScope.launch {
+            settingsStore.update { current ->
+                current.copy(hiddenGroups = HiddenGroups.restoreAll(current.hiddenGroups, playlistId))
+            }
+            notify(MessageKind.SUCCESS, code = "groups_restored")
+        }
+    }
+
+    fun undoHideGroup(title: String) {
+        restoreGroup(selectedPlaylistId.value, title)
     }
 
     fun setPin(pin: String?) {
@@ -323,6 +398,9 @@ class AppViewModel(
     fun deletePlaylist(id: Long) {
         viewModelScope.launch {
             library.deletePlaylist(id)
+            settingsStore.update { current ->
+                current.copy(hiddenGroups = HiddenGroups.restoreAll(current.hiddenGroups, id))
+            }
             if (selectedPlaylistId.value == id) selectedPlaylistId.value = -1
         }
     }
@@ -409,8 +487,9 @@ class AppViewModel(
     suspend fun loadGuideRows(): List<GuideRow> {
         val id = selectedPlaylistId.value
         if (id < 0) return emptyList()
-        val selected = group.value.ifBlank { groups.value.firstOrNull()?.title ?: "" }
-        val channels = library.head(id, selected, 8)
+        val excluded = HiddenGroups.titles(id, settings.value.hiddenGroups)
+        val selected = group.value
+        val channels = library.head(id, selected, 8, excluded)
         if (channels.isEmpty()) return emptyList()
         val programs = epgRepo.nowAndNext(id, channels)
         return channels.map { channel -> GuideRow(channel, programs[channel.epgKey].orEmpty()) }
@@ -465,7 +544,8 @@ class AppViewModel(
             typedNumber.value = ""
             val id = selectedPlaylistId.value
             if (number != null && id >= 0) {
-                library.channelByNumber(id, number)?.let { playback.select(it) }
+                val excluded = HiddenGroups.titles(id, settings.value.hiddenGroups)
+                library.channelByNumber(id, number, excluded)?.let { playback.select(it) }
             }
         }
     }
@@ -523,5 +603,6 @@ class AppViewModel(
         val query: String,
         val sort: ChannelSort,
         val favorites: Boolean,
+        val excludedGroups: List<String> = emptyList(),
     )
 }

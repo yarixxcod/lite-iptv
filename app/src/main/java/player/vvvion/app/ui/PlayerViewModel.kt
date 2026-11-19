@@ -8,6 +8,7 @@ import player.vvvion.app.data.prefs.SettingsStore
 import player.vvvion.app.data.repo.EpgRepository
 import player.vvvion.app.data.repo.LibraryRepository
 import player.vvvion.app.data.repo.altList
+import player.vvvion.app.domain.HiddenGroups
 import player.vvvion.app.player.EngineState
 import player.vvvion.app.player.PlaybackCoordinator
 import player.vvvion.app.player.PlayerEngine
@@ -18,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -98,7 +100,7 @@ class PlayerViewModel(
     fun zap(delta: Int) {
         val current = playback.channel.value ?: return
         viewModelScope.launch {
-            val next = library.neighbor(current, delta) ?: return@launch
+            val next = library.neighbor(current, delta, excludedTitles(current.playlistId)) ?: return@launch
             previous = current
             playback.select(next)
         }
@@ -153,6 +155,12 @@ class PlayerViewModel(
 
     fun close() = playback.closeFull()
 
+    private suspend fun excludedTitles(playlistId: Long): Set<String> {
+        val hidden = settingsStore.settings.first().hiddenGroups
+        return HiddenGroups.titles(playlistId, hidden)
+    }
+
+
     private fun pushDigit(digit: Int) {
         numberBuffer = (numberBuffer + digit).takeLast(4)
         typedNumber.value = numberBuffer
@@ -163,7 +171,7 @@ class PlayerViewModel(
             numberBuffer = ""
             typedNumber.value = ""
             val playlistId = playback.channel.value?.playlistId ?: return@launch
-            if (number != null) library.channelByNumber(playlistId, number)?.let { playback.select(it) }
+            if (number != null) library.channelByNumber(playlistId, number, excludedTitles(playlistId))?.let { playback.select(it) }
         }
     }
 }

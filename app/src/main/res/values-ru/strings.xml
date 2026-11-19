@@ -139,4 +139,14 @@
     <string name="diagnostics_refresh">Обновить отчёт о сбое</string>
     <string name="buffering">Буферизация…</string>
     <string name="next_source">Резервный поток</string>
+    <string name="undo">Отменить</string>
+    <string name="group_remove_title">Удалить эту группу?</string>
+    <string name="group_remove_body">Каналы из «%1$s» пропадут из «Все», поиска, переключения по номерам и программы передач. Избранные останутся в «Избранном». Группу можно вернуть в настройках.</string>
+    <string name="group_removed">Группа «%1$s» удалена</string>
+    <string name="group_restored">Группа «%1$s» восстановлена</string>
+    <string name="groups_restored">Удалённые группы восстановлены</string>
+    <string name="hidden_groups">Удалённые группы</string>
+    <string name="hidden_groups_empty">Удалённых групп нет.</string>
+    <string name="hidden_groups_restore">Вернуть</string>
+    <string name="hidden_groups_restore_all">Вернуть все</string>
 </resources>

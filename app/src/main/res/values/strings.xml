@@ -139,4 +139,14 @@
     <string name="diagnostics_refresh">Reload crash report</string>
     <string name="buffering">Buffering…</string>
     <string name="next_source">Next source</string>
+    <string name="undo">Undo</string>
+    <string name="group_remove_title">Remove this group?</string>
+    <string name="group_remove_body">Channels from “%1$s” will disappear from All, search, channel shortcuts and the guide. Favourites stay in Favourites. You can restore the group in Settings.</string>
+    <string name="group_removed">Group “%1$s” removed</string>
+    <string name="group_restored">Group “%1$s” restored</string>
+    <string name="groups_restored">Removed groups were restored</string>
+    <string name="hidden_groups">Removed groups</string>
+    <string name="hidden_groups_empty">No groups have been removed.</string>
+    <string name="hidden_groups_restore">Restore</string>
+    <string name="hidden_groups_restore_all">Restore all</string>
 </resources>

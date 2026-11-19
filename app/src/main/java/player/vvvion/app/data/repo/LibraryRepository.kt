@@ -11,6 +11,7 @@ import player.vvvion.app.data.db.HiddenEntity
 import player.vvvion.app.data.db.HistoryEntity
 import player.vvvion.app.data.db.PlaylistEntity
 import player.vvvion.app.data.importing.PlaylistUrls
+import player.vvvion.app.domain.HiddenGroups
 import player.vvvion.app.data.net.HttpClients
 import player.vvvion.app.data.net.downloadToFile
 import player.vvvion.app.data.net.fetchXtreamCategories
@@ -76,11 +77,13 @@ class LibraryRepository(
 
     suspend fun channel(id: Long): ChannelEntity? = db.channels().byId(id)
 
-    suspend fun channelByNumber(playlistId: Long, number: Int): ChannelEntity? = db.channels().byNumber(playlistId, number)
+    suspend fun channelByNumber(playlistId: Long, number: Int, excludedGroups: Collection<String> = emptyList()): ChannelEntity? =
+        db.channels().byNumber(playlistId, number, HiddenGroups.forSql(excludedGroups))
 
-    suspend fun neighbor(channel: ChannelEntity, delta: Int): ChannelEntity? {
-        return if (delta >= 0) db.channels().next(channel.playlistId, channel.number)
-        else db.channels().prev(channel.playlistId, channel.number)
+    suspend fun neighbor(channel: ChannelEntity, delta: Int, excludedGroups: Collection<String> = emptyList()): ChannelEntity? {
+        val excluded = HiddenGroups.forSql(excludedGroups)
+        return if (delta >= 0) db.channels().next(channel.playlistId, channel.number, excluded)
+        else db.channels().prev(channel.playlistId, channel.number, excluded)
     }
 
     fun paging(
@@ -89,14 +92,16 @@ class LibraryRepository(
         query: String,
         sort: ChannelSort,
         favoritesOnly: Boolean,
+        excludedGroups: Collection<String> = emptyList(),
     ): PagingSource<Int, ChannelEntity> {
         val q = escapeLike(query)
+        val excluded = HiddenGroups.forSql(excludedGroups)
         return if (favoritesOnly) {
             db.channels().pagingFavorites(playlistId, q)
         } else if (sort == ChannelSort.NAME) {
-            db.channels().pagingByName(playlistId, group, q)
+            db.channels().pagingByName(playlistId, group, q, excluded)
         } else {
-            db.channels().pagingByNumber(playlistId, group, q)
+            db.channels().pagingByNumber(playlistId, group, q, excluded)
         }
     }
 
@@ -218,8 +223,8 @@ class LibraryRepository(
         )
     }
 
-    suspend fun head(playlistId: Long, group: String, limit: Int = 8): List<ChannelEntity> =
-        db.channels().head(playlistId, group, limit)
+    suspend fun head(playlistId: Long, group: String, limit: Int = 8, excludedGroups: Collection<String> = emptyList()): List<ChannelEntity> =
+        db.channels().head(playlistId, group, limit, HiddenGroups.forSql(excludedGroups))
 
     fun cacheDir(): File = context.cacheDir
 
